@@ -14,6 +14,7 @@ func (s *UserRouter) InitUserRouter(Router *gin.RouterGroup) {
 	baseApi := v1.ApiGroupApp.SystemApiGroup.BaseApi
 	{
 		userRouter.POST("admin_register", baseApi.Register)               // 管理员注册账号
+		userRouter.POST("userRegister", baseApi.UserRegister)             // 维保管理员和工厂管理员注册账号
 		userRouter.POST("changePassword", baseApi.ChangePassword)         // 用户修改密码
 		userRouter.POST("setUserAuthority", baseApi.SetUserAuthority)     // 设置用户权限
 		userRouter.DELETE("deleteUser", baseApi.DeleteUser)               // 删除用户

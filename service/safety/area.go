@@ -44,7 +44,7 @@ func (areaService *AreaService)DeleteArea(area safety.Area) (err error) {
 }
 
 func (areaService *AreaService)DeleteAreaByFactoryName(area safety.Area) (err error) {
-	err = global.GVA_DB.Delete(&[]safety.Area{},"factory_name = ", area.FactoryName).Error
+	err = global.GVA_DB.Delete(&[]safety.Area{},"factory_name = ?", area.FactoryName).Error
 	return err
 }
 

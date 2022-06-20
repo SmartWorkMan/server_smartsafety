@@ -23,9 +23,18 @@ type Item struct {
       ItemSn  string `json:"itemSn" form:"itemSn" gorm:"column:item_sn;comment:巡检事项编码;size:191;"`
 }
 
-
 // TableName Item 表名
 func (Item) TableName() string {
-  return "safety_item"
+      return "safety_item"
 }
 
+type ItemNextPeriodDate struct {
+      global.GVA_MODEL
+      Period  string `json:"period" form:"period" gorm:"column:period;comment:巡检周期,day,week,month;size:191;"`
+      NextDate  string `json:"nextDate" form:"nextDate" gorm:"column:next_date;comment:下一个周期开始时间;"`
+      Interval  int `json:"interval" form:"interval" gorm:"column:interval;comment:周期间隔;"`
+}
+
+func (ItemNextPeriodDate) TableName() string {
+      return "safety_item_next_date"
+}

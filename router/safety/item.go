@@ -26,5 +26,6 @@ func (s *ItemRouter) InitItemRouter(Router *gin.RouterGroup) {
 		itemRouterWithoutRecord.GET("findItem", itemApi.FindItem)        // 根据ID获取Item
 		itemRouterWithoutRecord.POST("getItemList", itemApi.GetItemList)  // 获取Item列表
 		itemRouterWithoutRecord.POST("getItemListByAreaId", itemApi.GetItemListByAreaId)  // 按区域获取Item列表
+		itemRouterWithoutRecord.POST("getNextPeriodDate", itemApi.GetNextPeriodDate)
 	}
 }

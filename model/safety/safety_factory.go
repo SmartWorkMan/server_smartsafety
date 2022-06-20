@@ -11,6 +11,8 @@ type SafetyFactory struct {
       global.GVA_MODEL
       FactoryId  string `json:"factoryId" form:"factoryId" gorm:"column:factory_id;comment:工厂ID;size:64;"`
       FactoryName  string `json:"factoryName" form:"factoryName" gorm:"column:factory_name;comment:工厂名称;size:191;"`
+	  Lat  string `json:"lat" form:"lat" gorm:"column:lat;comment:工厂位置纬度;size:191;"`
+	  Lng  string `json:"lng" form:"lng" gorm:"column:lng;comment:工厂位置经度;size:191;"`
 }
 
 

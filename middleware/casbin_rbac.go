@@ -13,6 +13,11 @@ var casbinService = service.ServiceGroupApp.SystemServiceGroup.CasbinService
 // 拦截器
 func CasbinHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		appFlag := c.Request.Header.Get("x-app-flag")
+		if appFlag != "" {
+			c.Next()
+			return
+		}
 		waitUse, _ := utils.GetClaims(c)
 		// 获取请求的PATH
 		obj := c.Request.URL.Path

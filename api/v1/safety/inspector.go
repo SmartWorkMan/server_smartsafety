@@ -2,6 +2,7 @@ package safety
 
 import (
 	"fmt"
+	"github.com/flipped-aurora/gin-vue-admin/server/commval"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
@@ -27,27 +28,23 @@ type InspectorApi struct {
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
 // @Router /inspector/createInspector [post]
 func (inspectorApi *InspectorApi) CreateInspector(c *gin.Context) {
-	selfUserInfo := utils.GetUserInfo(c)
-	global.GVA_LOG.Info(fmt.Sprintf("user info:%+v", selfUserInfo))
-
-	var curUser *system.SysUser
-	var err error
-	err, curUser = userService.FindUserById(int(selfUserInfo.ID))
+	err, curUser := GetCurUser(c)
 	if err != nil {
 		global.GVA_LOG.Error("创建巡检员失败!", zap.Error(err))
-		response.FailWithMessage("创建巡检员失败", c)
-		return
-	}
-
-	if curUser.FactoryName == "" {
-		global.GVA_LOG.Error("创建巡检员失败!当前用户工厂名称为空")
-		response.FailWithMessage("创建巡检员失败!当前用户工厂名称为空", c)
+		response.FailWithMessage("创建巡检员失败!", c)
 		return
 	}
 
 	var inspector safety.Inspector
 	_ = c.ShouldBindJSON(&inspector)
 	inspector.FactoryName = curUser.FactoryName
+
+	if inspector.Username == "" || userService.IsUserNameExist(inspector.Username) {
+		global.GVA_LOG.Error("创建巡检员失败!用户名已存在!")
+		response.FailWithMessage("创建巡检员失败!用户名已存在!", c)
+		return
+	}
+
 	if err := inspectorService.CreateInspector(inspector); err != nil {
         global.GVA_LOG.Error("创建巡检员失败!", zap.Error(err))
 		response.FailWithMessage("创建巡检员失败", c)
@@ -164,30 +161,38 @@ func (inspectorApi *InspectorApi) FindInspector(c *gin.Context) {
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
 // @Router /inspector/getInspectorList [get]
 func (inspectorApi *InspectorApi) GetInspectorList(c *gin.Context) {
-	selfUserInfo := utils.GetUserInfo(c)
-
-	var curUser *system.SysUser
-	var err error
-	err, curUser = userService.FindUserById(int(selfUserInfo.ID))
-	if err != nil {
-		global.GVA_LOG.Error("获取巡检员列表失败!", zap.Error(err))
-		response.FailWithMessage("获取巡检员列表失败", c)
-		return
-	}
-
-	if curUser.FactoryName == "" {
-		global.GVA_LOG.Error("获取巡检员列表失败!当前用户工厂名称为空")
-		response.FailWithMessage("获取巡检员列表失败!当前用户工厂名称为空", c)
-		return
-	}
-
 	var pageInfo safetyReq.InspectorSearch
 	_ = c.ShouldBindJSON(&pageInfo)
 	if err := utils.Verify(pageInfo, utils.PageInfoVerify); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
 	}
-	pageInfo.FactoryName = curUser.FactoryName
+
+	appFlag := c.Request.Header.Get("x-app-flag")
+	if appFlag != "" {
+		if pageInfo.FactoryName == "" {
+			global.GVA_LOG.Error("获取巡检员列表失败!工厂名称为空!")
+			response.FailWithMessage("获取巡检员列表失败!工厂名称为空!", c)
+			return
+		}
+	} else {
+		var curUser *system.SysUser
+		selfUserInfo := utils.GetUserInfo(c)
+		var err error
+		err, curUser = userService.FindUserById(int(selfUserInfo.ID))
+		if err != nil {
+			global.GVA_LOG.Error("获取巡检员列表失败!", zap.Error(err))
+			response.FailWithMessage("获取巡检员列表失败", c)
+			return
+		}
+		if curUser.FactoryName == "" {
+			global.GVA_LOG.Error("获取巡检员列表失败!当前用户工厂名称为空")
+			response.FailWithMessage("获取巡检员列表失败!当前用户工厂名称为空", c)
+			return
+		}
+		pageInfo.FactoryName = curUser.FactoryName
+	}
+
 	if err, list, total := inspectorService.GetInspectorInfoList(pageInfo); err != nil {
 	    global.GVA_LOG.Error("获取巡检员列表失败!", zap.Error(err))
         response.FailWithMessage("获取巡检员列表失败", c)
@@ -206,10 +211,35 @@ func (inspectorApi *InspectorApi) Login(c *gin.Context) {
 	var inspector safety.Inspector
 	_ = c.ShouldBindJSON(&inspector)
 
-	if err := inspectorService.Login(inspector); err != nil {
-		global.GVA_LOG.Error("登陆失败! 用户名不存在或者密码错误!", zap.Error(err))
-		response.FailWithMessage("用户名不存在或者密码错误", c)
-	} else {
-		response.OkWithMessage("登录成功", c)
+	if inspectorService.IsUserNameExist(inspector.Username) {
+		if err := inspectorService.Login(&inspector); err != nil {
+			global.GVA_LOG.Error("登陆失败! 用户名不存在或者密码错误!", zap.Error(err))
+			response.FailWithMessage("用户名不存在或者密码错误", c)
+		} else {
+			response.OkWithDetailed(safetyReq.InspectorLogin{
+				Role: commval.AppUserRoleInspector,
+				FactoryName: inspector.FactoryName,
+			}, "巡检员登录成功", c)
+		}
+	} else if userService.IsUserNameExist(inspector.Username) {
+		if err, sysUser := userService.AppLogin(inspector.Username, inspector.Password); err != nil {
+			global.GVA_LOG.Error("登陆失败! 用户名不存在或者密码错误!", zap.Error(err))
+			response.FailWithMessage("用户名不存在或者密码错误", c)
+		} else {
+			var role int
+			if sysUser.AuthorityId == commval.FactoryUserAuthorityId {
+				role = commval.AppUserRoleFactory
+			} else if sysUser.AuthorityId == commval.MaintainUserAuthorityId {
+				role = commval.AppUserRoleMaintain
+			} else {
+				global.GVA_LOG.Error(fmt.Sprintf("登陆失败!用户角色错误! AuthorityId:%s", sysUser.AuthorityId))
+				response.FailWithMessage("登陆失败!用户角色错误!", c)
+				return
+			}
+			response.OkWithDetailed(safetyReq.InspectorLogin{
+				Role: role,
+				FactoryName: sysUser.FactoryName,
+			}, "管理员登录成功", c)
+		}
 	}
 }

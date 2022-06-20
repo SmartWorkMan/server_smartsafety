@@ -6,4 +6,13 @@ type ServiceGroup struct {
 	AreaService
 	ItemService
 	TaskService
+	LawsService
+	TecentService
+	ClockService
+	BasicInfoService
+	BuildingInfoService
+	PlanService
+	LocationLibraryService
+	KeyLocationService
+	TrainingService
 }

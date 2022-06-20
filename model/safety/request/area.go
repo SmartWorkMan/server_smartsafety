@@ -9,3 +9,8 @@ type AreaSearch struct{
     safety.Area
     request.PageInfo
 }
+
+type AreaByInspector struct{
+	InspectorUsername  string `json:"inspectorUsername"`
+}
+

@@ -244,3 +244,19 @@ func (userService *UserService) ResetPassword(ID uint) (err error) {
 	err = global.GVA_DB.Model(&system.SysUser{}).Where("id = ?", ID).Update("password", utils.MD5V([]byte("123456"))).Error
 	return err
 }
+
+func (userService *UserService) IsUserNameExist(username string) bool {
+	var user system.SysUser
+	if !errors.Is(global.GVA_DB.Where("username = ?", username).First(&user).Error, gorm.ErrRecordNotFound) { // 判断用户名是否注册
+		return true
+	}
+	return false
+}
+
+func (userService *UserService) AppLogin(username string, passwd string) (error, system.SysUser) {
+	var user system.SysUser
+	passwd = utils.MD5V([]byte(passwd))
+	err := global.GVA_DB.Where("username = ? AND password = ?", username, passwd).First(&user).Error
+	return err, user
+}
+

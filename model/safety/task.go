@@ -2,7 +2,7 @@
 package safety
 
 import (
-	"github.com/flipped-aurora/gin-vue-admin/server/global"
+      "github.com/flipped-aurora/gin-vue-admin/server/global"
 )
 
 // Task 结构体
@@ -35,4 +35,15 @@ type Task struct {
 func (Task) TableName() string {
   return "safety_task"
 }
+
+type TaskHistory struct{
+      Task
+      TaskId  uint `json:"taskId" form:"taskId" gorm:"column:task_id;comment:巡检任务ID;"`
+}
+
+func (TaskHistory) TableName() string {
+      return "safety_task_history"
+}
+
+
 

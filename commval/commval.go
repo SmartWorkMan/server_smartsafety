@@ -34,8 +34,8 @@ const (
 	AdminUser string = "admin"
 	RootUser string = "root_user"
 	SuperUser string= "super_user"
-	MaintainUserPrefix string = "maintain_user@"
-	FactoryUserPrefix string = "factory_user@"
+	MaintainUserPrefix string = "muser@"
+	FactoryUserPrefix string = "fuser@"
 	DefaultPasswd string = "123456"
 	FactoryUserNickName string = "工厂管理员"
 	MaintainUserNickName string = "维保管理员"
@@ -50,8 +50,22 @@ const (
 )
 
 const (
-	UserTypeFactoryUser = iota
+	SighInRedirectSuccess string = "http://119.3.31.87:8080/registersuccess.html"
+	SighInRedirectOver string = "http://119.3.31.87:8080/registerover.html"
+	SighInRedirectFailed string = "http://119.3.31.87:8080/registerfailed.html"
+)
+
+const (
+	UserTypeAdmin = iota
+	UserTypeFactoryUser
 	UserTypeMaintainUser
+)
+
+const (
+	AppUserRoleErr = iota
+	AppUserRoleInspector
+	AppUserRoleMaintain
+	AppUserRoleFactory
 )
 
 const (
@@ -71,8 +85,9 @@ var TaskStatus map[int]string
 func InitCommVal() {
 	TaskStatus = make(map[int]string)
 	TaskStatus[TaskStatusNotStart] = "未开始"
-	TaskStatus[TaskStatusReportIssue] = "巡检员上报隐患"
+	TaskStatus[TaskStatusReportIssue] = "巡检员上报故障"
 	TaskStatus[TaskStatusAssignTask] = "管理员下派任务"
 	TaskStatus[TaskStatusApproval] = "巡检员上报审批"
-	TaskStatus[TaskStatusEnd] = "完成"
+	TaskStatus[TaskStatusEnd] = "正常"
 }
+

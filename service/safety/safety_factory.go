@@ -15,10 +15,6 @@ type SafetyFactoryService struct {
 // Author [piexlmax](https://github.com/piexlmax)
 func (safetyFactoryService *SafetyFactoryService) CreateSafetyFactory(safetyFactory safety.SafetyFactory) (err error) {
 	var factory safety.SafetyFactory
-	if !errors.Is(global.GVA_DB.Where("factory_id = ?", safetyFactory.FactoryId).First(&factory).Error, gorm.ErrRecordNotFound) {
-		return errors.New("工厂ID已经存在")
-	}
-
 	if !errors.Is(global.GVA_DB.Where("factory_name = ?", safetyFactory.FactoryName).First(&factory).Error, gorm.ErrRecordNotFound) {
 		return errors.New("工厂名称已经存在")
 	}
@@ -48,8 +44,20 @@ func (safetyFactoryService *SafetyFactoryService)UpdateSafetyFactory(safetyFacto
 	return err
 }
 
+func (safetyFactoryService *SafetyFactoryService)UpdateFactoryLatLng(safetyFactory safety.SafetyFactory) (err error) {
+	db := global.GVA_DB.Model(&safety.SafetyFactory{})
+	updateFactory := safety.SafetyFactory{ Lat: safetyFactory.Lat, Lng: safetyFactory.Lng}
+	err = db.Where("id = ?", safetyFactory.ID).Updates(updateFactory).Error
+	return err
+}
+
 // GetSafetyFactory 根据id获取SafetyFactory记录
 // Author [piexlmax](https://github.com/piexlmax)
+func (safetyFactoryService *SafetyFactoryService)QuerySafetyFactory(inputFactory safety.SafetyFactory) (err error, safetyFactory safety.SafetyFactory) {
+	err = global.GVA_DB.Where("factory_name = ?", inputFactory.FactoryName).First(&safetyFactory).Error
+	return
+}
+
 func (safetyFactoryService *SafetyFactoryService)GetSafetyFactory(id uint) (err error, safetyFactory safety.SafetyFactory) {
 	err = global.GVA_DB.Where("id = ?", id).First(&safetyFactory).Error
 	return

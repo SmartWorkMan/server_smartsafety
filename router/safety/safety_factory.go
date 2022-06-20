@@ -19,9 +19,11 @@ func (s *SafetyFactoryRouter) InitSafetyFactoryRouter(Router *gin.RouterGroup) {
 		safetyFactoryRouter.DELETE("deleteSafetyFactory", safetyFactoryApi.DeleteSafetyFactory) // 删除SafetyFactory
 		safetyFactoryRouter.DELETE("deleteSafetyFactoryByIds", safetyFactoryApi.DeleteSafetyFactoryByIds) // 批量删除SafetyFactory
 		safetyFactoryRouter.PUT("updateSafetyFactory", safetyFactoryApi.UpdateSafetyFactory)    // 更新SafetyFactory
+		safetyFactoryRouter.PUT("updateFactoryLatLng", safetyFactoryApi.UpdateFactoryLatLng)    // 更新SafetyFactory
 	}
 	{
 		safetyFactoryRouterWithoutRecord.GET("findSafetyFactory", safetyFactoryApi.FindSafetyFactory)        // 根据ID获取SafetyFactory
 		safetyFactoryRouterWithoutRecord.POST("getSafetyFactoryList", safetyFactoryApi.GetSafetyFactoryList)  // 获取SafetyFactory列表
+		safetyFactoryRouterWithoutRecord.POST("querySafetyFactory", safetyFactoryApi.QuerySafetyFactory)  // 获取SafetyFactory列表
 	}
 }

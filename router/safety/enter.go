@@ -6,4 +6,13 @@ type RouterGroup struct {
 	AreaRouter
 	ItemRouter
 	TaskRouter
+	LawsRouter
+	TecentRouter
+	ClockRouter
+	BasicInfoRouter
+	BuildingInfoRouter
+	PlanRouter
+	LocationLibraryRouter
+	KeyLocationRouter
+	TrainingRouter
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -32,7 +31,7 @@ func (safetyFactoryApi *SafetyFactoryApi) CreateSafetyFactory(c *gin.Context) {
         global.GVA_LOG.Error("创建工厂失败!", zap.Error(err))
 		response.FailWithMessage("创建工厂失败", c)
 	} else {
-		//注册工厂管理员和维保管理员
+		/*//注册工厂管理员和维保管理员
 		err = safetyFactoryApi.registerUser(safetyFactory, commval.UserTypeFactoryUser)
 		if err != nil {
 			global.GVA_LOG.Error("创建工厂失败!注册工厂管理员失败!", zap.Error(err))
@@ -45,7 +44,7 @@ func (safetyFactoryApi *SafetyFactoryApi) CreateSafetyFactory(c *gin.Context) {
 			global.GVA_LOG.Error("创建工厂失败!注册维保管理员失败!", zap.Error(err))
 			response.FailWithMessage("创建工厂失败!注册维保管理员失败!", c)
 			return
-		}
+		}*/
 
 		//创建巡检区域根节点
 		var area safety.Area
@@ -63,20 +62,20 @@ func (safetyFactoryApi *SafetyFactoryApi) CreateSafetyFactory(c *gin.Context) {
 	}
 }
 
-func (safetyFactoryService *SafetyFactoryApi) registerUser(safetyFactory safety.SafetyFactory, userType int) error {
+/*func (safetyFactoryService *SafetyFactoryApi) registerUser(safetyFactory safety.SafetyFactory, userType int) error {
 	var authorityId string
-	var userPrefix string
+	//var userPrefix string
 	var userNick string
 	var msg string
 	if userType == commval.UserTypeFactoryUser {
 		authorityId = commval.FactoryUserAuthorityId
-		userPrefix = commval.FactoryUserPrefix
-		userNick = commval.FactoryUserNickName
+		//userPrefix = commval.FactoryUserPrefix
+		userNick = safetyFactory.FactoryName + commval.FactoryUserNickName
 		msg = "工厂管理员"
 	} else {
 		authorityId = commval.MaintainUserAuthorityId
-		userPrefix = commval.MaintainUserPrefix
-		userNick = commval.MaintainUserNickName
+		//userPrefix = commval.MaintainUserPrefix
+		userNick = safetyFactory.FactoryName + commval.MaintainUserNickName
 		msg = "维保管理员"
 	}
 
@@ -88,7 +87,7 @@ func (safetyFactoryService *SafetyFactoryApi) registerUser(safetyFactory safety.
 		})
 	}
 	user := &system.SysUser{
-		Username: userPrefix + safetyFactory.FactoryId,
+		Username: safetyFactory.FactoryId,
 		NickName: userNick,
 		Password: commval.DefaultPasswd,
 		AuthorityId: authorityId,
@@ -104,7 +103,7 @@ func (safetyFactoryService *SafetyFactoryApi) registerUser(safetyFactory safety.
 		global.GVA_LOG.Info(msg + "注册成功!", zap.Error(err))
 		return nil
 	}
-}
+}*/
 
 // DeleteSafetyFactory 删除SafetyFactory
 // @Tags SafetyFactory
@@ -157,7 +156,14 @@ func (safetyFactoryApi *SafetyFactoryApi) DeleteSafetyFactory(c *gin.Context) {
 			response.FailWithMessage("删除工厂失败!删除工厂巡检事项失败!", c)
 		}
 
-		response.OkWithMessage("删除工厂成功", c)
+		//删除巡检任务
+		err = taskService.DeleteTaskByFactoryName(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除工厂巡检任务失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除工厂巡检任务失败!", c)
+		} else {
+			response.OkWithMessage("删除工厂成功", c)
+		}
 	}
 }
 
@@ -201,6 +207,18 @@ func (safetyFactoryApi *SafetyFactoryApi) UpdateSafetyFactory(c *gin.Context) {
 	}
 }
 
+// @Router /safetyFactory/updateFactoryLatLng [put]
+func (safetyFactoryApi *SafetyFactoryApi) UpdateFactoryLatLng(c *gin.Context) {
+	var safetyFactory safety.SafetyFactory
+	_ = c.ShouldBindJSON(&safetyFactory)
+	if err := safetyFactoryService.UpdateFactoryLatLng(safetyFactory); err != nil {
+		global.GVA_LOG.Error("更新经纬度失败!", zap.Error(err))
+		response.FailWithMessage("更新经纬度失败", c)
+	} else {
+		response.OkWithMessage("更新经纬度成功", c)
+	}
+}
+
 // FindSafetyFactory 用id查询SafetyFactory
 // @Tags SafetyFactory
 // @Summary 用id查询SafetyFactory
@@ -220,6 +238,19 @@ func (safetyFactoryApi *SafetyFactoryApi) FindSafetyFactory(c *gin.Context) {
 		response.OkWithData(gin.H{"resafetyFactory": resafetyFactory}, c)
 	}
 }
+
+// @Router /safetyFactory/querySafetyFactory [post]
+func (safetyFactoryApi *SafetyFactoryApi) QuerySafetyFactory(c *gin.Context) {
+	var safetyFactory safety.SafetyFactory
+	_ = c.ShouldBindJSON(&safetyFactory)
+	if err, resafetyFactory := safetyFactoryService.QuerySafetyFactory(safetyFactory); err != nil {
+		global.GVA_LOG.Error("查询失败!", zap.Error(err))
+		response.FailWithMessage("查询失败", c)
+	} else {
+		response.OkWithDetailed(resafetyFactory, "获取成功", c)
+	}
+}
+
 
 // GetSafetyFactoryList 分页获取SafetyFactory列表
 // @Tags SafetyFactory

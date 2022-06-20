@@ -13,6 +13,8 @@ type Register struct {
 	HeaderImg    string   `json:"headerImg" gorm:"default:'https://qmplusimg.henrongyi.top/gva_header.jpg'"`
 	AuthorityId  string   `json:"authorityId" gorm:"default:888"`
 	AuthorityIds []string `json:"authorityIds"`
+	UserType     int      `json:"userType"`
+	FactoryName  string   `json:"factoryName"`
 }
 
 // User login structure
@@ -49,6 +51,7 @@ type ChangeUserInfo struct {
 	Email        string               `json:"email"  gorm:"comment:用户邮箱"`                                                           // 用户邮箱
 	HeaderImg    string               `json:"headerImg" gorm:"default:https://qmplusimg.henrongyi.top/gva_header.jpg;comment:用户头像"` // 用户头像
 	Authorities  []model.SysAuthority `json:"-" gorm:"many2many:sys_user_authority;"`
+	FactoryName string                `json:"factoryName" gorm:"comment:工厂名称"`//工程名称
 }
 
 type UserSearch struct{

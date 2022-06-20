@@ -27,6 +27,20 @@ import (
 func (b *BaseApi) Login(c *gin.Context) {
 	var l systemReq.Login
 	_ = c.ShouldBindJSON(&l)
+
+	//小程序登录factory user或者maintain user
+	appFlag := c.Request.Header.Get("x-app-flag")
+	if appFlag != "" {
+		u := &system.SysUser{Username: l.Username, Password: l.Password}
+		if err, appUser := userService.Login(u); err != nil {
+			global.GVA_LOG.Error("登陆失败! 用户名不存在或者密码错误!", zap.Error(err))
+			response.FailWithMessage("用户名不存在或者密码错误", c)
+		} else {
+			b.tokenNext(c, *appUser)
+		}
+		return
+	}
+
 	if err := utils.Verify(l, utils.LoginVerify); err != nil {
 		response.FailWithMessage(err.Error(), c)
 		return
@@ -46,6 +60,15 @@ func (b *BaseApi) Login(c *gin.Context) {
 
 // 登录以后签发jwt
 func (b *BaseApi) tokenNext(c *gin.Context, user system.SysUser) {
+	appFlag := c.Request.Header.Get("x-app-flag")
+	role := commval.AppUserRoleErr
+	if appFlag != "" {
+		if strings.HasPrefix(user.Username, commval.MaintainUserPrefix) {
+			role = commval.AppUserRoleMaintain
+		} else if strings.HasPrefix(user.Username, commval.FactoryUserPrefix) {
+			role = commval.AppUserRoleFactory
+		}
+	}
 	j := &utils.JWT{SigningKey: []byte(global.GVA_CONFIG.JWT.SigningKey)} // 唯一签名
 	claims := j.CreateClaims(systemReq.BaseClaims{
 		UUID:        user.UUID,
@@ -66,6 +89,8 @@ func (b *BaseApi) tokenNext(c *gin.Context, user system.SysUser) {
 			User:      user,
 			Token:     token,
 			ExpiresAt: claims.StandardClaims.ExpiresAt * 1000,
+			Role :     role,
+			FactoryName: user.FactoryName,
 		}, "登录成功", c)
 		return
 	}
@@ -80,6 +105,8 @@ func (b *BaseApi) tokenNext(c *gin.Context, user system.SysUser) {
 			User:      user,
 			Token:     token,
 			ExpiresAt: claims.StandardClaims.ExpiresAt * 1000,
+			Role :     role,
+			FactoryName: user.FactoryName,
 		}, "登录成功", c)
 	} else if err != nil {
 		global.GVA_LOG.Error("设置登录状态失败!", zap.Error(err))
@@ -99,6 +126,8 @@ func (b *BaseApi) tokenNext(c *gin.Context, user system.SysUser) {
 			User:      user,
 			Token:     token,
 			ExpiresAt: claims.StandardClaims.ExpiresAt * 1000,
+			Role :     role,
+			FactoryName: user.FactoryName,
 		}, "登录成功", c)
 	}
 }
@@ -122,7 +151,69 @@ func (b *BaseApi) Register(c *gin.Context) {
 			AuthorityId: v,
 		})
 	}
+	if inspectorService.IsUserNameExist(r.Username)  {
+		global.GVA_LOG.Error("注册失败!用户名已注册!")
+		response.FailWithDetailed(systemRes.SysUserResponse{User: system.SysUser{}}, "注册失败!用户名已注册!", c)
+	}
+
 	user := &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: r.AuthorityId, Authorities: authorities}
+	err, userReturn := userService.Register(*user)
+	if err != nil {
+		global.GVA_LOG.Error("注册失败!", zap.Error(err))
+		response.FailWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册失败", c)
+	} else {
+		response.OkWithDetailed(systemRes.SysUserResponse{User: userReturn}, "注册成功", c)
+	}
+}
+
+// @Router /user/userRegister [post]
+func (b *BaseApi) UserRegister(c *gin.Context) {
+	var r systemReq.Register
+	_ = c.ShouldBindJSON(&r)
+	if err := utils.Verify(r, utils.RegisterVerify); err != nil {
+		response.FailWithMessage(err.Error(), c)
+		return
+	}
+
+	var user *system.SysUser
+	if r.UserType == commval.UserTypeFactoryUser {
+		if r.FactoryName == "" {
+			global.GVA_LOG.Error("注册失败!工厂名称为空!")
+			response.FailWithMessage("注册失败!工厂名称为空!", c)
+		}
+		authorityId := commval.FactoryUserAuthorityId
+		authorityIds :=[]string{authorityId}
+		var authorities []system.SysAuthority
+		for _, v := range authorityIds {
+			authorities = append(authorities, system.SysAuthority{
+				AuthorityId: v,
+			})
+		}
+		user = &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: authorityId, Authorities: authorities, FactoryName: r.FactoryName}
+	} else if r.UserType == commval.UserTypeMaintainUser {
+		if r.FactoryName == "" {
+			global.GVA_LOG.Error("注册失败!工厂名称为空!")
+			response.FailWithMessage("注册失败!工厂名称为空!", c)
+		}
+		authorityId := commval.MaintainUserAuthorityId
+		authorityIds :=[]string{authorityId}
+		var authorities []system.SysAuthority
+		for _, v := range authorityIds {
+			authorities = append(authorities, system.SysAuthority{
+				AuthorityId: v,
+			})
+		}
+		user = &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: authorityId, Authorities: authorities, FactoryName: r.FactoryName}
+	} else {
+		var authorities []system.SysAuthority
+		for _, v := range r.AuthorityIds {
+			authorities = append(authorities, system.SysAuthority{
+				AuthorityId: v,
+			})
+		}
+		user = &system.SysUser{Username: r.Username, NickName: r.NickName, Password: r.Password, HeaderImg: r.HeaderImg, AuthorityId: r.AuthorityId, Authorities: authorities}
+	}
+
 	err, userReturn := userService.Register(*user)
 	if err != nil {
 		global.GVA_LOG.Error("注册失败!", zap.Error(err))
@@ -298,15 +389,30 @@ func (b *BaseApi) SetUserInfo(c *gin.Context) {
 		}
 	}
 
-	if err := userService.SetUserInfo(system.SysUser{
-		GVA_MODEL: global.GVA_MODEL{
-			ID: user.ID,
-		},
-		NickName:  user.NickName,
-		HeaderImg: user.HeaderImg,
-		Phone:     user.Phone,
-		Email:     user.Email,
-	}); err != nil {
+	var updateUserInfo system.SysUser
+	if user.FactoryName == "" {
+		updateUserInfo = system.SysUser{
+			GVA_MODEL: global.GVA_MODEL{
+				ID: user.ID,
+			},
+			NickName:  user.NickName,
+			HeaderImg: user.HeaderImg,
+			Phone:     user.Phone,
+			Email:     user.Email,
+		}
+	} else {
+		updateUserInfo = system.SysUser{
+			GVA_MODEL: global.GVA_MODEL{
+				ID: user.ID,
+			},
+			NickName:  user.NickName,
+			HeaderImg: user.HeaderImg,
+			Phone:     user.Phone,
+			Email:     user.Email,
+			FactoryName: user.FactoryName,
+		}
+	}
+	if err := userService.SetUserInfo(updateUserInfo); err != nil {
 		global.GVA_LOG.Error("设置失败!", zap.Error(err))
 		response.FailWithMessage("设置失败", c)
 	} else {

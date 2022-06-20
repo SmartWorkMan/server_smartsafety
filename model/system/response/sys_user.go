@@ -12,4 +12,6 @@ type LoginResponse struct {
 	User      system.SysUser `json:"user"`
 	Token     string         `json:"token"`
 	ExpiresAt int64          `json:"expiresAt"`
+	Role      int            `json:"role"` //0:undefined 1: inspector 2:maintain user 3: factory user
+	FactoryName  string      `json:"factoryName"`
 }

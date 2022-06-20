@@ -8,6 +8,11 @@ import (
 )
 
 func GetClaims(c *gin.Context) (*systemReq.CustomClaims, error) {
+	appFlag := c.Request.Header.Get("x-app-flag")
+	if appFlag != "" {
+		global.GVA_LOG.Info("小程序请求头不存在x-token,不解析claims")
+		return nil, nil
+	}
 	token := c.Request.Header.Get("x-token")
 	j := NewJWT()
 	claims, err := j.ParseToken(token)

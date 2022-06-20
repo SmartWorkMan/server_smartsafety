@@ -17,7 +17,7 @@ type ItemService struct {
 // Author [piexlmax](https://github.com/piexlmax)
 func (itemService *ItemService) CreateItem(inputItem safety.Item) (err error) {
 	var item safety.Item
-	if !errors.Is(global.GVA_DB.Where("factory_name = ? AND area_name = ? AND item_name = ?", inputItem.FactoryName, inputItem.AreaName, inputItem.ItemName).First(&item).Error, gorm.ErrRecordNotFound) {
+	if !errors.Is(global.GVA_DB.Where("factory_name = ? AND area_name = ? AND item_name = ? AND item_sn = ?", inputItem.FactoryName, inputItem.AreaName, inputItem.ItemName, inputItem.ItemSn).First(&item).Error, gorm.ErrRecordNotFound) {
 		return errors.New("当前巡检区域该巡检事项已存在")
 	}
 	err = global.GVA_DB.Create(&inputItem).Error
@@ -117,3 +117,39 @@ func (itemService *ItemService)GetItemInfoListByLeafAreaId(info safetyReq.ItemSe
 	return err, items, total
 }
 
+
+func (itemService *ItemService) CreateNextPeriodDate(inputDate safety.ItemNextPeriodDate) (err error) {
+	var nextDate safety.ItemNextPeriodDate
+	if !errors.Is(global.GVA_DB.Where("period = ?", inputDate.Period).First(&nextDate).Error, gorm.ErrRecordNotFound) {
+		return errors.New("周期已存在")
+	}
+	err = global.GVA_DB.Create(&inputDate).Error
+	return err
+}
+
+func (itemService *ItemService)UpdateNextPeriodDate(inputDate safety.ItemNextPeriodDate) (err error) {
+	db := global.GVA_DB.Model(&safety.ItemNextPeriodDate{})
+	err = db.Where("period = ?", inputDate.Period).UpdateColumn("next_date", inputDate.NextDate).Error
+	if err != nil {
+		return err
+	}
+
+	if inputDate.Interval != 0 {
+		err = db.Where("period = ?", inputDate.Period).UpdateColumn("interval", inputDate.Interval).Error
+	}
+	return err
+}
+
+func (itemService *ItemService)IsPeriodExist(inputDate safety.ItemNextPeriodDate) bool {
+	var nextDate safety.ItemNextPeriodDate
+	if !errors.Is(global.GVA_DB.Where("period = ?", inputDate.Period).First(&nextDate).Error, gorm.ErrRecordNotFound) {
+		return true
+	}
+	return false
+}
+
+func (itemService *ItemService)GetNextPeriodDate(inputDate safety.ItemNextPeriodDate) (error, safety.ItemNextPeriodDate) {
+	var nextDate safety.ItemNextPeriodDate
+	err := global.GVA_DB.Where("period = ?", inputDate.Period).First(&nextDate).Error
+	return err, nextDate
+}

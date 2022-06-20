@@ -53,3 +53,13 @@ func FailWithMessage(message string, c *gin.Context) {
 func FailWithDetailed(data interface{}, message string, c *gin.Context) {
 	Result(ERROR, data, message, c)
 }
+
+func Redirect(location string, msg string, c *gin.Context) {
+	// 开始时间
+	c.Header("Location", location)
+	c.JSON(http.StatusFound, Response{
+		SUCCESS,
+		nil,
+		msg,
+	})
+}

@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func generateTask(period string) {
+func GenerateTask(period string) {
 	curDate := time.Now().Format("2006-01-02")
-	global.GVA_LOG.Info(fmt.Sprintf("开始生成巡检任务, 日期:%s", curDate))
+	global.GVA_LOG.Info(fmt.Sprintf("开始生成 %s 巡检任务, 日期:%s", period, curDate))
 
 	err, itemList := itemService.GetAllValidItemList(period)
 	if err != nil {
@@ -35,13 +35,18 @@ func generateTask(period string) {
 		task.TaskStatus = commval.TaskStatusNotStart
 		task.TaskStatusStr = commval.TaskStatus[commval.TaskStatusNotStart]
 
+		if taskService.IsExistActiveTask(task) {
+			global.GVA_LOG.Warn(fmt.Sprintf("巡检事项存在未完成任务,此次不生成,factoryName:%s, areaName:%s, itemName:%s", task.FactoryName, task.AreaName, task.ItemName))
+			continue
+		}
+
 		err = taskService.CreateTask(task)
 		if err != nil {
 			global.GVA_LOG.Error(fmt.Sprintf("生成巡检任务失败!task:%+v", task), zap.Error(err))
 		}
 	}
 
-	global.GVA_LOG.Info(fmt.Sprintf("成功生成巡检任务, 日期:%s", curDate))
+	global.GVA_LOG.Info(fmt.Sprintf("成功生成 %s 巡检任务, 日期:%s", period, curDate))
 	return
 }
 
@@ -59,7 +64,7 @@ func dailyTask(dateTime time.Time) {
 		t := time.NewTimer(next.Sub(now))
 		<-t.C
 		// 执行的任务内容
-		generateTask(commval.ItemPeriodDay)
+		GenerateTask(commval.ItemPeriodDay)
 	}
 }
 
@@ -72,12 +77,26 @@ func weeklyTask(dateTime time.Time) {
 			global.GVA_LOG.Info(fmt.Sprintf("执行时间未到, 日期:%s", now.String()))
 			next = now.Add(time.Hour * 24 * 7)
 			next = time.Date(next.Year(), next.Month(), next.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+
+			var period safety.ItemNextPeriodDate
+			period.Period = commval.ItemPeriodWeek
+			period.NextDate  = next.Format("2006-01-02")
+			period.Interval = 7
+			var err error
+			if itemService.IsPeriodExist(period) {
+				err = itemService.UpdateNextPeriodDate(period)
+			} else {
+				err = itemService.CreateNextPeriodDate(period)
+			}
+			if err != nil {
+				global.GVA_LOG.Error("设置下一个重复周开始日期失败!", zap.Error(err))
+			}
 		}
 		// 阻塞到执行时间
 		t := time.NewTimer(next.Sub(now))
 		<-t.C
 		// 执行的任务内容
-		generateTask(commval.ItemPeriodWeek)
+		GenerateTask(commval.ItemPeriodWeek)
 	}
 }
 
@@ -90,12 +109,26 @@ func monthlyTask(dateTime time.Time) {
 			global.GVA_LOG.Info(fmt.Sprintf("执行时间未到, 日期:%s", now.String()))
 			next = now.Add(time.Hour * 24 * 30)
 			next = time.Date(next.Year(), next.Month(), next.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+
+			var period safety.ItemNextPeriodDate
+			period.Period = commval.ItemPeriodMonth
+			period.NextDate  = next.Format("2006-01-02")
+			period.Interval = 30
+			var err error
+			if itemService.IsPeriodExist(period) {
+				err = itemService.UpdateNextPeriodDate(period)
+			} else {
+				err = itemService.CreateNextPeriodDate(period)
+			}
+			if err != nil {
+				global.GVA_LOG.Error("设置下一个重复月开始日期失败!", zap.Error(err))
+			}
 		}
 		// 阻塞到执行时间
 		t := time.NewTimer(next.Sub(now))
 		<-t.C
 		// 执行的任务内容
-		generateTask(commval.ItemPeriodMonth)
+		GenerateTask(commval.ItemPeriodMonth)
 	}
 }
 

@@ -1,14 +1,23 @@
 package safety
 
 import (
+	"errors"
+	"fmt"
+	"github.com/flipped-aurora/gin-vue-admin/server/commval"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
 	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/json-iterator/go"
 	"go.uber.org/zap"
+	"strings"
+	"time"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type TaskApi struct {
 }
@@ -32,6 +41,14 @@ func (taskApi *TaskApi) CreateTask(c *gin.Context) {
 	} else {
 		response.OkWithMessage("创建成功", c)
 	}
+}
+
+// @Router /task/temp/createTask [post]
+func (taskApi *TaskApi) TempCreateTask(c *gin.Context) {
+	GenerateTask(commval.ItemPeriodDay)
+	GenerateTask(commval.ItemPeriodWeek)
+	GenerateTask(commval.ItemPeriodMonth)
+	response.OkWithMessage("创建巡检任务成功(此API只为测试使用,上线后删除)", c)
 }
 
 // DeleteTask 删除Task
@@ -74,6 +91,69 @@ func (taskApi *TaskApi) DeleteTaskByIds(c *gin.Context) {
 	}
 }
 
+func taskReport2Task(taskReport safetyReq.TaskReport) safety.Task {
+	var task safety.Task
+	task = taskReport.Task
+	if len(taskReport.ItemPicList) == 0 {
+		task.ItemPic = ""
+	} else {
+		task.ItemPic = ""
+		for i := 0; i < len(taskReport.ItemPicList); i++ {
+			if i != len(taskReport.ItemPicList) - 1 {
+				task.ItemPic += taskReport.ItemPicList[i] + ","
+			} else {
+				task.ItemPic += taskReport.ItemPicList[i]
+			}
+		}
+	}
+
+	if len(taskReport.FixPicList) == 0 {
+		task.FixPic = ""
+	} else {
+		task.FixPic = ""
+		for i := 0; i < len(taskReport.FixPicList); i++ {
+			if i != len(taskReport.FixPicList) - 1 {
+				task.FixPic += taskReport.FixPicList[i] + ","
+			} else {
+				task.FixPic += taskReport.FixPicList[i]
+			}
+		}
+	}
+	return task
+}
+
+func taskList2TaskReportList (taskList []safety.Task) []safetyReq.TaskReport {
+	var taskReportList []safetyReq.TaskReport
+	for _, task := range taskList {
+		var taskReport safetyReq.TaskReport
+		taskReport.Task = task
+		taskReport.ItemPic = ""
+		taskReport.FixPic = ""
+		itemPicList := strings.Split(task.ItemPic, ",")
+		fixPicList := strings.Split(task.FixPic, ",")
+		taskReport.ItemPicList = itemPicList
+		taskReport.FixPicList = fixPicList
+		taskReportList = append(taskReportList, taskReport)
+	}
+	return taskReportList
+}
+
+func taskHistoryList2TaskReportList (taskHistoryList []safety.TaskHistory) []safetyReq.TaskReport {
+	var taskReportList []safetyReq.TaskReport
+	for _, task := range taskHistoryList {
+		var taskReport safetyReq.TaskReport
+		taskReport.Task = task.Task
+		taskReport.ItemPic = ""
+		taskReport.FixPic = ""
+		itemPicList := strings.Split(task.ItemPic, ",")
+		fixPicList := strings.Split(task.FixPic, ",")
+		taskReport.ItemPicList = itemPicList
+		taskReport.FixPicList = fixPicList
+		taskReportList = append(taskReportList, taskReport)
+	}
+	return taskReportList
+}
+
 // UpdateTask 更新Task
 // @Tags Task
 // @Summary 更新Task
@@ -82,15 +162,63 @@ func (taskApi *TaskApi) DeleteTaskByIds(c *gin.Context) {
 // @Produce application/json
 // @Param data body safety.Task true "更新Task"
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"更新成功"}"
-// @Router /task/updateTask [put]
-func (taskApi *TaskApi) UpdateTask(c *gin.Context) {
+// @Router /task/app/reportTaskResult [put]
+func (taskApi *TaskApi) ReportTaskResult(c *gin.Context) {
+	var taskReport safetyReq.TaskReport
+	_ = c.ShouldBindJSON(&taskReport)
+	if taskReport.ID == 0 {
+		global.GVA_LOG.Error("巡检员提交巡检任务失败!请输入正确任务ID")
+		response.FailWithMessage("巡检员提交巡检任务失败!请输入正确任务ID", c)
+		return
+	}
+	if taskReport.TaskStatusStr == "" {
+		global.GVA_LOG.Error("巡检员提交巡检任务失败!请输入正确巡检任务状态!")
+		response.FailWithMessage("巡检员提交巡检任务失败!请输入正确巡检任务状态!", c)
+		return
+	}
+
+	global.GVA_LOG.Info(fmt.Sprintf("taskReport:%+v", taskReport))
+	global.GVA_LOG.Info(fmt.Sprintf("task:%+v", taskReport2Task(taskReport)))
+
+	if err := taskService.ReportTaskResult(taskReport2Task(taskReport)); err != nil {
+        global.GVA_LOG.Error("巡检员提交巡检任务失败!", zap.Error(err))
+		response.FailWithMessage("巡检员提交巡检任务失败", c)
+	} else {
+		response.OkWithMessage("巡检员提交巡检任务成功", c)
+	}
+}
+
+// @Router /task/assignTask [put]
+func (taskApi *TaskApi) AssignTask(c *gin.Context) {
 	var task safety.Task
 	_ = c.ShouldBindJSON(&task)
-	if err := taskService.UpdateTask(task); err != nil {
-        global.GVA_LOG.Error("更新失败!", zap.Error(err))
-		response.FailWithMessage("更新失败", c)
+	if task.ID == 0 || task.InspectorUsername == "" || task.InspectorName == "" {
+		global.GVA_LOG.Error("下派任务失败!请检查请求信息!")
+		response.FailWithMessage("下派任务失败!请检查请求信息!", c)
+		return
+	}
+	if err := taskService.AssignTask(task); err != nil {
+		global.GVA_LOG.Error("下派任务失败!", zap.Error(err))
+		response.FailWithMessage("下派任务失败", c)
 	} else {
-		response.OkWithMessage("更新成功", c)
+		response.OkWithMessage("下派任务成功", c)
+	}
+}
+
+// @Router /task/approveTask [put]
+func (taskApi *TaskApi) ApproveTask(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.ID == 0 {
+		global.GVA_LOG.Error("审批任务失败!请检查请求信息!")
+		response.FailWithMessage("审批任务失败!请检查请求信息!", c)
+		return
+	}
+	if err := taskService.ApproveTask(task); err != nil {
+		global.GVA_LOG.Error("审批任务失败!", zap.Error(err))
+		response.FailWithMessage("审批任务失败", c)
+	} else {
+		response.OkWithMessage("审批任务成功", c)
 	}
 }
 
@@ -122,19 +250,357 @@ func (taskApi *TaskApi) FindTask(c *gin.Context) {
 // @Produce application/json
 // @Param data query safetyReq.TaskSearch true "分页获取Task列表"
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
-// @Router /task/getTaskList [get]
-func (taskApi *TaskApi) GetTaskList(c *gin.Context) {
+// @Router /task/getNotStartTaskList [post]
+func (taskApi *TaskApi) GetNotStartTaskList(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusNotStart)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/getFaultTaskList [post]
+func (taskApi *TaskApi) GetFaultTaskList(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusReportIssue)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/getAssignTaskList [post]
+func (taskApi *TaskApi) GetAssignTaskList(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusAssignTask)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/getApprovalTaskList [post]
+func (taskApi *TaskApi) GetApprovalTaskList(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusApproval)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+func (taskApi *TaskApi) getTaskList(c *gin.Context, taskStatus int)(error, interface{}, int64, safetyReq.TaskSearch) {
 	var pageInfo safetyReq.TaskSearch
 	_ = c.ShouldBindJSON(&pageInfo)
-	if err, list, total := taskService.GetTaskInfoList(pageInfo); err != nil {
-	    global.GVA_LOG.Error("获取失败!", zap.Error(err))
-        response.FailWithMessage("获取失败", c)
-    } else {
-        response.OkWithDetailed(response.PageResult{
-            List:     list,
-            Total:    total,
-            Page:     pageInfo.Page,
-            PageSize: pageInfo.PageSize,
-        }, "获取成功", c)
-    }
+	appFlag := c.Request.Header.Get("x-app-flag")
+	if appFlag != "" {
+		if pageInfo.FactoryName == "" {
+			return errors.New("工厂名称不能为空"), nil, 0, pageInfo
+		}
+	} else {
+		err, curUser := GetCurUser(c)
+		if err != nil {
+			return err, nil, 0, pageInfo
+		}
+		pageInfo.FactoryName = curUser.FactoryName
+	}
+
+	curDate := time.Now().Format("2006-01-02")
+	pageInfo.TaskStatus = taskStatus
+	pageInfo.PlanInspectionDate = curDate
+	err, list, total := taskService.GetTaskInfoList(pageInfo)
+	newList := taskList2TaskReportList(list.([]safety.Task))
+	return err, newList, total, pageInfo
+}
+
+// @Router /task/getTaskHistory [post]
+func (taskApi *TaskApi) GetTaskHistory(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	err, curUser := GetCurUser(c)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败!", c)
+		return
+	}
+
+	_ = c.ShouldBindJSON(&pageInfo)
+	pageInfo.FactoryName = curUser.FactoryName
+	if pageInfo.TaskStatus == commval.TaskStatusNotStart {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的记录类型!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的记录类型!", c)
+		return
+	}
+
+	if err, list, total := taskService.GetTaskHistory(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
+
+// @Router /task/app/getTaskHistoryByItem [post]
+func (taskApi *TaskApi) GetTaskHistoryByItem(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+
+	err, inspector := inspectorService.GetInspectorByUserName(pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+	pageInfo.FactoryName = inspector.FactoryName
+
+	if err, list, total := taskService.GetTaskHistoryByItemForInspector(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
+
+// @Router /task/app/getTaskHistoryByStatus [post]
+func (taskApi *TaskApi) GetTaskHistoryByStatus(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+	if pageInfo.TaskStatus == commval.TaskStatusNotStart {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的记录类型!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的记录类型!", c)
+		return
+	}
+
+	err, inspector := inspectorService.GetInspectorByUserName(pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检历史记录失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+	pageInfo.FactoryName = inspector.FactoryName
+
+	if err, list, total := taskService.GetTaskHistoryByStatusForInspector(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
+
+// @Router /task/app/getTaskHistoryByStatusStr [post]
+func (taskApi *TaskApi) GetTaskHistoryByStatusStrForAppAdmin(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.TaskStatusStr == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!任务状态不能为空!")
+		response.FailWithMessage("获取巡检历史记录失败!任务状态不能为空!", c)
+		return
+	}
+	if pageInfo.FactoryName == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!工厂名称不能为空!")
+		response.FailWithMessage("获取巡检历史记录失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, list, total := taskService.GetTaskHistoryByStatusStrForAppAdmin(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
+
+
+// @Router /task/app/getTaskListByArea [post]
+func (taskApi *TaskApi) GetTaskListByArea(c *gin.Context) {
+	var pageInfo safetyReq.TaskSearch
+	_ = c.ShouldBindBodyWith(&pageInfo, binding.JSON)
+	if pageInfo.InspectorUsername == ""{
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请检查输入!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请检查输入!", c)
+		return
+	}
+	if pageInfo.AreaId == 0 {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请输入正确区域ID!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请输入正确区域ID!", c)
+		return
+	}
+
+	err, inspector := inspectorService.GetInspectorByUserName(pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+	pageInfo.FactoryName = inspector.FactoryName
+	curDate := time.Now().Format("2006-01-02")
+	pageInfo.PlanInspectionDate = curDate
+
+	if err, list, total := taskService.GetTaskListByAreaForInspector(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检员巡检任务失败", c)
+		return
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskList2TaskReportList(list.([]safety.Task)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检员巡检任务成功", c)
+	}
+}
+
+// @Router /task/app/getTaskListByStatus [post]
+// 小程序任务中心
+func (taskApi *TaskApi) GetTaskListByStatus(c *gin.Context) {
+	var pageInfo safetyReq.TaskSearch
+	_ = c.ShouldBindBodyWith(&pageInfo, binding.JSON)
+	if pageInfo.InspectorUsername == ""{
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请检查输入!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请检查输入!", c)
+		return
+	}
+
+	bodyMap := make(map[string]interface{})
+	_ = c.ShouldBindBodyWith(&bodyMap, binding.JSON)
+	_, ok := bodyMap["taskStatus"]
+	if !ok {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请检查正确任务状态!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请检查正确任务状态!", c)
+		return
+	}
+
+	if pageInfo.TaskStatus == commval.TaskStatusEnd {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请检查正确任务状态!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请检查正确任务状态!", c)
+		return
+	}
+
+	err, inspector := inspectorService.GetInspectorByUserName(pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检员巡检任务失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+	pageInfo.FactoryName = inspector.FactoryName
+	curDate := time.Now().Format("2006-01-02")
+	pageInfo.PlanInspectionDate = curDate
+
+	if err, list, total := taskService.GetTaskListByStatusForInspector(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检任务失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检员巡检任务失败", c)
+		return
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskList2TaskReportList(list.([]safety.Task)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检员巡检任务成功", c)
+	}
+}
+
+// @Router /task/app/getFaultTaskList [post]
+// factoryName in body
+func (taskApi *TaskApi) GetFaultTaskListForAppAdmin(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusReportIssue)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/app/getApprovalTaskList [post]
+// factoryName in body
+func (taskApi *TaskApi) GetApprovalTaskListForAppAdmin(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusApproval)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/app/getAssignTaskList [post]
+// factoryName in body
+func (taskApi *TaskApi) GetAssignTaskListForAppAdmin(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusAssignTask)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
 }

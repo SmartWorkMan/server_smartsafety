@@ -9,3 +9,8 @@ type InspectorSearch struct{
     safety.Inspector
     request.PageInfo
 }
+
+type InspectorLogin struct{
+	Role  int `json:"role"` //1: inspector 2:maintain user 3: factory user
+	FactoryName  string `json:"factoryName"`
+}

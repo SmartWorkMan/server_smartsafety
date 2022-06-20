@@ -53,6 +53,11 @@ func (inspectorService *InspectorService)GetInspector(id uint) (err error, inspe
 	return
 }
 
+func (inspectorService *InspectorService)GetInspectorByUserName(userName string) (err error, inspector safety.Inspector) {
+	err = global.GVA_DB.Where("username = ?", userName).First(&inspector).Error
+	return
+}
+
 // GetInspectorInfoList 分页获取Inspector记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (inspectorService *InspectorService)GetInspectorInfoList(info safetyReq.InspectorSearch) (err error, list interface{}, total int64) {
@@ -70,12 +75,19 @@ func (inspectorService *InspectorService)GetInspectorInfoList(info safetyReq.Ins
 	return err, inspectors, total
 }
 
-func (inspectorService *InspectorService) Login(inputInspector safety.Inspector) (err error) {
+func (inspectorService *InspectorService) Login(inputInspector *safety.Inspector) (err error) {
 	if nil == global.GVA_DB {
 		return fmt.Errorf("db not init")
 	}
 
-	var inspector safety.Inspector
-	err = global.GVA_DB.Where("username = ? AND password = ?", inputInspector.Username, inputInspector.Password).First(&inspector).Error
+	err = global.GVA_DB.Where("username = ? AND password = ?", inputInspector.Username, inputInspector.Password).First(inputInspector).Error
 	return err
+}
+
+func (inspectorService *InspectorService) IsUserNameExist(username string) bool {
+	var insp safety.Inspector
+	if !errors.Is(global.GVA_DB.Where("username = ?", username).First(&insp).Error, gorm.ErrRecordNotFound) { // 判断用户名是否注册
+		return true
+	}
+	return false
 }

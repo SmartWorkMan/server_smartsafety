@@ -1,14 +1,18 @@
 package safety
 
 import (
+	"fmt"
+	"github.com/flipped-aurora/gin-vue-admin/server/commval"
 	"github.com/flipped-aurora/gin-vue-admin/server/global"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
+	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/system"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"time"
 )
 
 type AreaApi struct {
@@ -17,6 +21,7 @@ type AreaApi struct {
 type AreaListRes struct {
 	AreaId    int            `json:"areaId"`
 	AreaName  string         `json:"areaName"`
+	AreaStatus  string         `json:"areaStatus"`
 	Children  []AreaListRes  `json:"children"`
 }
 
@@ -67,8 +72,8 @@ func (areaApi *AreaApi) CreateArea(c *gin.Context) {
 func (areaApi *AreaApi) DeleteArea(c *gin.Context) {
 	err, curUser := GetCurUser(c)
 	if err != nil {
-		global.GVA_LOG.Error("创建巡检区域失败!", zap.Error(err))
-		response.FailWithMessage("创建巡检区域失败", c)
+		global.GVA_LOG.Error("删除巡检区域失败!", zap.Error(err))
+		response.FailWithMessage("删除巡检区域失败", c)
 		return
 	}
 
@@ -85,10 +90,16 @@ func (areaApi *AreaApi) DeleteArea(c *gin.Context) {
 		item.AreaId = area.ID
 		err = itemService.DeleteItemByAreaId(item)
 		if err != nil {
-			global.GVA_LOG.Error("删除巡检区域的巡检事项失败!", zap.Error(err))
+			global.GVA_LOG.Error("删除巡检区域下的巡检事项失败!", zap.Error(err))
 			response.FailWithMessage("删除巡检区域的巡检事项失败", c)
 		} else {
-			response.OkWithMessage("删除巡检区域成功", c)
+			err = taskService.DeleteTaskByAreaId(area.ID)
+			if err != nil {
+				global.GVA_LOG.Error("删除巡检区域下的巡检任务失败!", zap.Error(err))
+				response.FailWithMessage("删除巡检区域下的巡检任务失败", c)
+			} else {
+				response.OkWithMessage("删除巡检区域成功", c)
+			}
 		}
 	}
 }
@@ -178,7 +189,7 @@ func (areaApi *AreaApi) FindArea(c *gin.Context) {
 // @Produce application/json
 // @Param data query safetyReq.AreaSearch true "分页获取Area列表"
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
-// @Router /area/getAreaList [post]
+// @Router /area/getAreaList [get]
 func (areaApi *AreaApi) GetAreaList(c *gin.Context) {
 	err, curUser := GetCurUser(c)
 	if err != nil {
@@ -262,3 +273,184 @@ func (areaApi *AreaApi) GetLeafAreaIdList(area safety.Area)(error, []uint) {
 	return nil, areaIdList
 }
 
+// @Router /area/app/getAreaListByInspector [post]
+func (areaApi *AreaApi) GetAreaListByInspector(c *gin.Context) {
+	//检查输入巡检员用户名
+	var pageInfo safetyReq.TaskSearch
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取巡检员巡检区域列表失败!巡检员用户名为空!")
+		response.FailWithMessage("获取巡检员巡检区域列表失败!巡检员用户名为空!", c)
+		return
+	}
+
+	//获取工厂名
+	err, inspector := inspectorService.GetInspectorByUserName(pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检区域列表失败!请输入正确的巡检员用户名!")
+		response.FailWithMessage("获取巡检员巡检区域列表失败!请输入正确的巡检员用户名!", c)
+		return
+	}
+
+	//检查巡检员是否有巡检任务
+	pageInfo.FactoryName = inspector.FactoryName
+	curDate := time.Now().Format("2006-01-02")
+	pageInfo.PlanInspectionDate = curDate
+	err, _, total := taskService.GetTaskListByInspectorForAreaTree(pageInfo)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检区域列表失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检员巡检区域列表失败", c)
+		return
+	}
+
+	if total == 0 {
+		global.GVA_LOG.Error(fmt.Sprintf("获取巡检员巡检区域列表失败!巡检员: %s 今天没有巡检任务", pageInfo.InspectorUsername))
+		response.FailWithMessage(fmt.Sprintf("获取巡检员巡检区域列表失败!巡检员: %s 今天没有巡检任务", pageInfo.InspectorUsername), c)
+		return
+	}
+
+	//获取工厂全部区域列表
+	err, id := areaService.GetRootAreaId(inspector.FactoryName)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检区域列表失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检员巡检区域列表失败", c)
+		return
+	}
+
+	var listRes AreaListRes
+	listRes.AreaName = inspector.FactoryName
+	listRes.AreaId = int(id)
+
+	var reqArea safety.Area
+	reqArea.FactoryName = inspector.FactoryName
+	reqArea.ID = id
+	err, listRes.Children, listRes.AreaStatus = areaApi.GetAreaChildrenByInspector(reqArea, pageInfo.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检员巡检区域列表失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检员巡检区域列表失败", c)
+		return
+	} else {
+		response.OkWithDetailed(listRes, "获取巡检员巡检区域列表成功", c)
+	}
+}
+
+func (areaApi *AreaApi) GetAreaChildrenByInspector(area safety.Area, inspectorUserName string)(error, []AreaListRes, string) {
+	if areaService.IsLeafNode(area) {
+		err, status := areaApi.getAreaStatus(area, inspectorUserName)
+		if err != nil {
+			return err, nil, ""
+		}
+		return nil, nil, status
+	} else {
+		err, hasTask := areaApi.isAreaHasInspectorTask(area, inspectorUserName)
+		if err != nil {
+			return err, nil, ""
+		}
+		if !hasTask {
+			return nil, nil, ""
+		}
+
+		err, areaChildren := areaService.GetAreaByParentId(area.FactoryName, int(area.ID))
+		if err != nil {
+			return err, nil, ""
+		} else {
+			var childrenRes []AreaListRes
+			childrenStatus := ""
+			for _, child := range areaChildren {
+
+				var tempArea safety.Area
+				tempArea.FactoryName = area.FactoryName
+				tempArea.ID = child.ID
+				err, hasTask := areaApi.isAreaHasInspectorTask(tempArea, inspectorUserName)
+				if err != nil {
+					return err, nil, ""
+				}
+				if !hasTask {
+					continue
+				}
+
+				var childRes AreaListRes
+				childRes.AreaId = int(child.ID)
+				childRes.AreaName = child.AreaName
+				err, childRes.Children, childRes.AreaStatus = areaApi.GetAreaChildrenByInspector(child, inspectorUserName)
+				if err != nil {
+					return err, nil, ""
+				}
+				childrenRes = append(childrenRes, childRes)
+				if childRes.AreaStatus == "异常" {
+					childrenStatus = "异常"
+				} else if childRes.AreaStatus == "未开始" && childrenStatus != "异常"{
+					childrenStatus = "未开始"
+				} else if childRes.AreaStatus == "正常" && childrenStatus == "" {
+					childrenStatus = "正常"
+				}
+			}
+
+			return nil, childrenRes, childrenStatus
+		}
+	}
+}
+
+func (areaApi *AreaApi) getAreaStatus(area safety.Area, inspectorUserName string)(error, string) {
+	err, hasTask := areaApi.isAreaHasInspectorTask(area, inspectorUserName)
+	if err != nil {
+		return err, ""
+	}
+	if !hasTask {
+		return nil, ""
+	}
+
+	var pageInfo safetyReq.TaskSearch
+	pageInfo.FactoryName = area.FactoryName
+	curDate := time.Now().Format("2006-01-02")
+	pageInfo.PlanInspectionDate = curDate
+	pageInfo.InspectorUsername = inspectorUserName
+	pageInfo.AreaId = area.ID
+	var taskList interface{}
+	if err, taskList, _ = taskService.GetTaskListByAreaForInspector(pageInfo); err != nil {
+		return err, ""
+	}
+
+	notStartCount := 0
+	endCount := 0
+	for _, task := range taskList.([]safety.Task) {
+		if task.TaskStatus != commval.TaskStatusNotStart && task.TaskStatus != commval.TaskStatusEnd {
+			return nil, "异常"
+		} else if task.TaskStatus == commval.TaskStatusNotStart {
+			notStartCount ++
+		} else {
+			endCount ++
+		}
+	}
+
+	if notStartCount > 0 {
+		return nil, "未开始"
+	} else {
+		return nil, "正常"
+	}
+}
+
+func (areaApi *AreaApi) isAreaHasInspectorTask(area safety.Area, inspectorUserName string)(error, bool) {
+	err, areaIdList := areaApi.GetLeafAreaIdList(area)
+	if err != nil {
+		return err, false
+	}
+
+	for _, areaId := range areaIdList {
+		var pageInfo safetyReq.TaskSearch
+		pageInfo.FactoryName = area.FactoryName
+		curDate := time.Now().Format("2006-01-02")
+		pageInfo.PlanInspectionDate = curDate
+		pageInfo.InspectorUsername = inspectorUserName
+		pageInfo.AreaId = areaId
+		err, _, total := taskService.GetTaskListByAreaForInspector(pageInfo)
+		if err != nil {
+			return err, false
+		}
+		if total > 0 {
+			return nil, true
+		}
+	}
+
+	return nil, false
+}

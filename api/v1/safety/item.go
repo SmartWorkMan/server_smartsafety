@@ -66,6 +66,10 @@ func (itemApi *ItemApi) CreateItem(c *gin.Context) {
         global.GVA_LOG.Error("创建巡检事项失败!", zap.Error(err))
 		response.FailWithMessage("创建巡检事项失败", c)
 	} else {
+		//立即生成重复日巡检任务
+		if item.Period == commval.ItemPeriodDay {
+			GenerateTask(item.Period)
+		}
 		response.OkWithMessage("创建巡检事项成功", c)
 	}
 }
@@ -94,6 +98,15 @@ func (itemApi *ItemApi) getAreaPath(areaId uint)(error, string) {
 	return nil, areaPath
 }
 
+func (itemApi *ItemApi) deleteItem(item safety.Item) error {
+	if err := itemService.DeleteItem(item); err != nil {
+		return err
+	} else {
+		err = taskService.DeleteTaskByItemId(item.ID)
+		return err
+	}
+}
+
 // DeleteItem 删除Item
 // @Tags Item
 // @Summary 删除Item
@@ -104,13 +117,43 @@ func (itemApi *ItemApi) getAreaPath(areaId uint)(error, string) {
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"删除成功"}"
 // @Router /item/deleteItem [delete]
 func (itemApi *ItemApi) DeleteItem(c *gin.Context) {
-	var item safety.Item
-	_ = c.ShouldBindJSON(&item)
-	if err := itemService.DeleteItem(item); err != nil {
-        global.GVA_LOG.Error("删除失败!", zap.Error(err))
-		response.FailWithMessage("删除失败", c)
+	var itemDel safetyReq.ItemUpdateAndDelete
+	_ = c.ShouldBindJSON(&itemDel)
+	if itemDel.Force == 1 {
+		err := itemApi.deleteItem(itemDel.Item)
+		if err != nil {
+			global.GVA_LOG.Error("删除巡检项目失败!", zap.Error(err))
+			response.FailWithMessage("删除巡检项目失败", c)
+			return
+		} else {
+			response.OkWithMessage("删除巡检项目成功", c)
+			return
+		}
 	} else {
-		response.OkWithMessage("删除成功", c)
+		err, tasks := taskService.GetTaskByItem(itemDel.ID)
+		if err != nil {
+			global.GVA_LOG.Error("删除巡检项目失败!", zap.Error(err))
+			response.FailWithMessage("删除巡检项目失败", c)
+			return
+		}
+
+		for _, task := range tasks {
+			if task.TaskStatus != commval.TaskStatusNotStart {
+				global.GVA_LOG.Error("删除巡检事项失败!巡检事项下任务已开始!")
+				response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "删除巡检事项失败!巡检事项下任务已开始!", c)
+				return
+			}
+		}
+
+		err = itemApi.deleteItem(itemDel.Item)
+		if err != nil {
+			global.GVA_LOG.Error("删除巡检项目失败!", zap.Error(err))
+			response.FailWithMessage("删除巡检项目失败", c)
+			return
+		} else {
+			response.OkWithMessage("删除巡检项目成功", c)
+			return
+		}
 	}
 }
 
@@ -134,6 +177,28 @@ func (itemApi *ItemApi) DeleteItemByIds(c *gin.Context) {
 	}
 }
 
+func (itemApi *ItemApi) updateItem(item safety.Item) error {
+	if err := itemService.UpdateItem(item); err != nil {
+		return err
+	} else {
+		err, tasks := taskService.GetTaskByItem(item.ID)
+		if err != nil {
+			return err
+		}
+		if len(tasks) == 0 {
+			return nil
+		}
+
+		err = taskService.DeleteTaskByItemId(item.ID)
+		if err != nil {
+			return err
+		}
+		GenerateTask(item.Period)
+
+		return nil
+	}
+}
+
 // UpdateItem 更新Item
 // @Tags Item
 // @Summary 更新Item
@@ -151,14 +216,37 @@ func (itemApi *ItemApi) UpdateItem(c *gin.Context) {
 		return
 	}
 
-	var item safety.Item
-	_ = c.ShouldBindJSON(&item)
-	item.FactoryName = curUser.FactoryName
-	if err = itemService.UpdateItem(item); err != nil {
-        global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
-		response.FailWithMessage("更新巡检事项失败", c)
+	var itemUpdate safetyReq.ItemUpdateAndDelete
+	_ = c.ShouldBindJSON(&itemUpdate)
+	itemUpdate.FactoryName = curUser.FactoryName
+
+	if itemUpdate.Force == 1 {
+		err := itemApi.updateItem(itemUpdate.Item)
+		if err != nil {
+			global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
+			response.FailWithMessage("更新巡检事项失败", c)
+			return
+		}
 	} else {
-		response.OkWithMessage("更新巡检事项成功", c)
+		err, tasks := taskService.GetTaskByItem(itemUpdate.ID)
+		if err != nil {
+			global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
+			response.FailWithMessage("更新巡检事项失败", c)
+			return
+		}
+		if len(tasks) == 0 || tasks[0].TaskStatus == commval.TaskStatusNotStart {
+			err = itemApi.updateItem(itemUpdate.Item)
+			if err != nil {
+				global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
+				response.FailWithMessage("更新巡检事项失败", c)
+				return
+			}
+			response.OkWithMessage("更新巡检事项成功", c)
+		} else {
+			global.GVA_LOG.Error("更新巡检事项失败!巡检事项下任务已开始!", zap.Error(err))
+			response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "更新巡检事项失败!巡检事项下任务已开始!", c)
+			return
+		}
 	}
 }
 
@@ -242,7 +330,7 @@ func (itemApi *ItemApi) GetItemListByAreaId(c *gin.Context) {
 		response.FailWithMessage("获取巡检事项列表失败", c)
 	}
 
-	global.GVA_LOG.Info(fmt.Sprintf("areaId:%d的所有叶子节点ID:%v", reqArea.ID, leafAreaIdList))
+	//global.GVA_LOG.Info(fmt.Sprintf("areaId:%d的所有叶子节点ID:%v", reqArea.ID, leafAreaIdList))
 	//获取item list
 	var itemList []safety.Item
 	var itemTotal int64
@@ -302,5 +390,22 @@ func (itemApi *ItemApi) DisableItem(c *gin.Context) {
 		response.FailWithMessage("禁用巡检事项失败", c)
 	} else {
 		response.OkWithMessage("禁用巡检事项成功", c)
+	}
+}
+
+// @Router /item/getNextPeriodDate [post]
+func (itemApi *ItemApi) GetNextPeriodDate(c *gin.Context) {
+	var period safety.ItemNextPeriodDate
+	_ = c.ShouldBindJSON(&period)
+	if period.Period == "" {
+		global.GVA_LOG.Error("获取巡检事项下一个周期开始日期失败!输入周期为空!")
+		response.FailWithMessage("获取巡检事项下一个周期开始日期失败!输入周期为空!", c)
+		return
+	}
+	if err, nextPeriod := itemService.GetNextPeriodDate(period); err != nil {
+		global.GVA_LOG.Error("获取巡检事项下一个周期开始日期失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检事项下一个周期开始日期失败!", c)
+	} else {
+		response.OkWithDetailed(nextPeriod, "获取巡检事项下一个周期开始日期成功!", c)
 	}
 }

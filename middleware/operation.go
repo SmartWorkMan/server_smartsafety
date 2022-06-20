@@ -47,7 +47,7 @@ func OperationRecord() gin.HandlerFunc {
 			body, _ = json.Marshal(&m)
 		}
 		claims, _ := utils.GetClaims(c)
-		if claims.ID != 0 {
+		if claims != nil && claims.ID != 0 {
 			userId = int(claims.ID)
 		} else {
 			id, err := strconv.Atoi(c.Request.Header.Get("x-user-id"))

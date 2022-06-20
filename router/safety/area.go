@@ -23,5 +23,6 @@ func (s *AreaRouter) InitAreaRouter(Router *gin.RouterGroup) {
 	{
 		areaRouterWithoutRecord.GET("findArea", areaApi.FindArea)        // 根据ID获取Area
 		areaRouterWithoutRecord.GET("getAreaList", areaApi.GetAreaList)  // 获取Area列表
+		areaRouterWithoutRecord.POST("app/getAreaListByInspector", areaApi.GetAreaListByInspector)  // 获取Area列表
 	}
 }
