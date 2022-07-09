@@ -154,3 +154,14 @@ func (planApi *PlanApi) GetPlanList(c *gin.Context) {
         }, "获取成功", c)
     }
 }
+
+// @Router /plan/downloadPlanTemplate [get]
+func (planApi *PlanApi) DownloadPlanTemplate(c *gin.Context) {
+	var plan safety.Plan
+	_ = c.ShouldBindQuery(&plan)
+
+	filepath := "./resource/template.doc"
+	filename := "template.doc"
+
+	c.FileAttachment(filepath, filename)
+}

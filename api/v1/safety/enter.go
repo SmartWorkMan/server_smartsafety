@@ -19,6 +19,8 @@ type ApiGroup struct {
 	LocationLibraryApi
 	KeyLocationApi
 	TrainingApi
+	NoticeApi
+	ReportApi
 }
 
 var (
@@ -37,4 +39,6 @@ var (
     locationLibraryService = service.ServiceGroupApp.SafetyServiceGroup.LocationLibraryService
     keyLocationService     = service.ServiceGroupApp.SafetyServiceGroup.KeyLocationService
     trainingService        = service.ServiceGroupApp.SafetyServiceGroup.TrainingService
+    noticeService          = service.ServiceGroupApp.SafetyServiceGroup.NoticeService
+    reportService          = service.ServiceGroupApp.SafetyServiceGroup.ReportService
 )

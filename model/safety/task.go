@@ -28,6 +28,7 @@ type Task struct {
       TaskStatus  int `json:"taskStatus" form:"taskStatus" gorm:"column:task_status;comment:任务状态,0:未开始 1:巡检员上报隐患 2:管理员已下派任务 3:巡检员处理下派任务后上报审批 4:任务完成;"`
       ItemId  uint `json:"itemId" form:"itemId" gorm:"column:item_id;comment:巡检事项ID;"`
       TaskStatusStr  string `json:"taskStatusStr" form:"taskStatusStr" gorm:"column:task_status_str;comment:任务状态,0:未开始 1:巡检员上报隐患 2:管理员已下派任务 3:巡检员处理下派任务后上报审批 4:任务完成;size:191;"`
+      AdminComment  string `json:"adminComment" form:"adminComment" gorm:"column:admin_comment;comment:管理员任务注释;size:191;"`
 }
 
 

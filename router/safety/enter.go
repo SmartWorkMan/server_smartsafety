@@ -15,4 +15,7 @@ type RouterGroup struct {
 	LocationLibraryRouter
 	KeyLocationRouter
 	TrainingRouter
+	ScreenRouter
+	NoticeRouter
+	ReportRouter
 }

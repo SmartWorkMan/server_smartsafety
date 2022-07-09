@@ -15,4 +15,6 @@ type ServiceGroup struct {
 	LocationLibraryService
 	KeyLocationService
 	TrainingService
+	NoticeService
+	ReportService
 }

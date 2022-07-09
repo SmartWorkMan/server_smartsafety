@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
@@ -21,6 +22,10 @@ func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		appFlag := c.Request.Header.Get("x-app-flag")
 		if appFlag != "" {
+			c.Next()
+			return
+		}
+		if strings.HasPrefix(c.Request.URL.String(), "/training/sighInTraining") {
 			c.Next()
 			return
 		}

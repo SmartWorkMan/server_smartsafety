@@ -8,6 +8,8 @@ import (
 	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+	"errors"
 )
 
 type BasicInfoApi struct {
@@ -107,8 +109,12 @@ func (basicInfoApi *BasicInfoApi) GetBasicInfo(c *gin.Context) {
 	var basicInfo safety.BasicInfo
 	_ = c.ShouldBindJSON(&basicInfo)
 	if err, rebasicInfo := basicInfoService.GetBasicInfo(basicInfo.FactoryName); err != nil {
-        global.GVA_LOG.Error("查询失败!", zap.Error(err))
-		response.FailWithMessage("查询失败", c)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.OkWithDetailed(nil, "获取成功", c)
+		} else {
+			global.GVA_LOG.Error("查询失败!", zap.Error(err))
+			response.FailWithMessage("查询失败", c)
+		}
 	} else {
 		response.OkWithDetailed(rebasicInfo, "获取成功", c)
 	}

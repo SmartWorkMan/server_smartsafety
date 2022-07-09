@@ -26,3 +26,8 @@ type TaskReport struct{
 	ItemPicList  []string `json:"itemPicList"`
 	FixPicList  []string `json:"fixPicList"`
 }
+
+type TopItem struct {
+	ItemName  string `json:"itemName" form:"itemName" gorm:"column:item_name;comment:巡检事项名称;size:191;"`
+	Number int `json:"num" gorm:"column:num;"`
+}

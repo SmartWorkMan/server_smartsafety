@@ -50,9 +50,9 @@ const (
 )
 
 const (
-	SighInRedirectSuccess string = "http://119.3.31.87:8080/registersuccess.html"
-	SighInRedirectOver string = "http://119.3.31.87:8080/registerover.html"
-	SighInRedirectFailed string = "http://119.3.31.87:8080/registerfailed.html"
+	SighInRedirectSuccess string = "http://smartsafety.njzhida.cn:8080/registersuccess.html"
+	SighInRedirectOver string = "http://smartsafety.njzhida.cn:8080/registerover.html"
+	SighInRedirectFailed string = "http://smartsafety.njzhida.cn:8080/registerfailed.html"
 )
 
 const (

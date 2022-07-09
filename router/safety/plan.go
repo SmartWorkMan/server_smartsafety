@@ -23,5 +23,6 @@ func (s *PlanRouter) InitPlanRouter(Router *gin.RouterGroup) {
 	{
 		//planRouterWithoutRecord.GET("findPlan", planApi.FindPlan)        // 根据ID获取Plan
 		planRouterWithoutRecord.POST("getPlanList", planApi.GetPlanList)  // 获取Plan列表
+		planRouterWithoutRecord.GET("downloadPlanTemplate", planApi.DownloadPlanTemplate)
 	}
 }

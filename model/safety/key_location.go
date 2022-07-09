@@ -16,6 +16,7 @@ type KeyLocation struct {
       LocationImage  string `json:"locationImage" form:"locationImage" gorm:"column:location_image;comment:重点部位照片;size:1000;"`
       LocationName  string `json:"locationName" form:"locationName" gorm:"column:location_name;comment:重点部位名称;size:191;"`
       Place  string `json:"place" form:"place" gorm:"column:place;comment:所在位置;size:191;"`
+      AttachmentName  string `json:"attachmentName" form:"attachmentName" gorm:"column:attachment_name;comment:附件名称;size:191;"`
 }
 
 

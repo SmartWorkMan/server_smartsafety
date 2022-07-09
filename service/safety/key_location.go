@@ -47,7 +47,9 @@ func (keyLocationService *KeyLocationService)UpdateKeyLocation(keyLocation safet
 		DutyOfficer: keyLocation.DutyOfficer,
 		Description: keyLocation.Description,
 		Place: keyLocation.Place,
-		Attachment: keyLocation.Attachment}
+		Attachment: keyLocation.Attachment,
+		AttachmentName: keyLocation.AttachmentName,
+	}
 	err = db.Where("id = ?", keyLocation.ID).Updates(updateKL).Error
 	return err
 }

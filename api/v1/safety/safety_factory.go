@@ -6,9 +6,11 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/common/response"
 	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
+	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"strings"
 )
 
 type SafetyFactoryApi struct {
@@ -24,28 +26,13 @@ type SafetyFactoryApi struct {
 // @Success 200 {string} string "{"success":true,"data":{},"msg":"获取成功"}"
 // @Router /safetyFactory/createSafetyFactory [post]
 func (safetyFactoryApi *SafetyFactoryApi) CreateSafetyFactory(c *gin.Context) {
-	var safetyFactory safety.SafetyFactory
+	var safetyFactory safetyReq.SafetyFactoryJson
 	_ = c.ShouldBindJSON(&safetyFactory)
 
-	if err := safetyFactoryService.CreateSafetyFactory(safetyFactory); err != nil {
+	if err := safetyFactoryService.CreateSafetyFactory(factoryJson2Factory(safetyFactory)); err != nil {
         global.GVA_LOG.Error("创建工厂失败!", zap.Error(err))
 		response.FailWithMessage("创建工厂失败", c)
 	} else {
-		/*//注册工厂管理员和维保管理员
-		err = safetyFactoryApi.registerUser(safetyFactory, commval.UserTypeFactoryUser)
-		if err != nil {
-			global.GVA_LOG.Error("创建工厂失败!注册工厂管理员失败!", zap.Error(err))
-			response.FailWithMessage("创建工厂失败!注册工厂管理员失败!", c)
-			return
-		}
-
-		err = safetyFactoryApi.registerUser(safetyFactory, commval.UserTypeMaintainUser)
-		if err != nil {
-			global.GVA_LOG.Error("创建工厂失败!注册维保管理员失败!", zap.Error(err))
-			response.FailWithMessage("创建工厂失败!注册维保管理员失败!", c)
-			return
-		}*/
-
 		//创建巡检区域根节点
 		var area safety.Area
 		area.FactoryName = safetyFactory.FactoryName
@@ -62,48 +49,45 @@ func (safetyFactoryApi *SafetyFactoryApi) CreateSafetyFactory(c *gin.Context) {
 	}
 }
 
-/*func (safetyFactoryService *SafetyFactoryApi) registerUser(safetyFactory safety.SafetyFactory, userType int) error {
-	var authorityId string
-	//var userPrefix string
-	var userNick string
-	var msg string
-	if userType == commval.UserTypeFactoryUser {
-		authorityId = commval.FactoryUserAuthorityId
-		//userPrefix = commval.FactoryUserPrefix
-		userNick = safetyFactory.FactoryName + commval.FactoryUserNickName
-		msg = "工厂管理员"
+func factoryJson2Factory(factoryJson safetyReq.SafetyFactoryJson) safety.SafetyFactory {
+	var factory safety.SafetyFactory
+	factory = factoryJson.SafetyFactory
+	if len(factoryJson.ProvinceCity) == 0 {
+		factory.City = ""
 	} else {
-		authorityId = commval.MaintainUserAuthorityId
-		//userPrefix = commval.MaintainUserPrefix
-		userNick = safetyFactory.FactoryName + commval.MaintainUserNickName
-		msg = "维保管理员"
+		factory.City = ""
+		for i := 0; i < len(factoryJson.ProvinceCity); i++ {
+			if i != len(factoryJson.ProvinceCity) - 1 {
+				factory.City += factoryJson.ProvinceCity[i] + ","
+			} else {
+				factory.City += factoryJson.ProvinceCity[i]
+			}
+		}
 	}
 
-	authorityIds :=[]string{authorityId}
-	var authorities []system.SysAuthority
-	for _, v := range authorityIds {
-		authorities = append(authorities, system.SysAuthority{
-			AuthorityId: v,
-		})
-	}
-	user := &system.SysUser{
-		Username: safetyFactory.FactoryId,
-		NickName: userNick,
-		Password: commval.DefaultPasswd,
-		AuthorityId: authorityId,
-		Authorities: authorities,
-		HeaderImg: "",
-		FactoryName: safetyFactory.FactoryName}
+	return factory
+}
 
-	err, _ := userService.Register(*user)
-	if err != nil {
-		global.GVA_LOG.Error(msg + "注册失败!", zap.Error(err))
-		return err
-	} else {
-		global.GVA_LOG.Info(msg + "注册成功!", zap.Error(err))
-		return nil
+func factory2FactoryJson (factory safety.SafetyFactory) safetyReq.SafetyFactoryJson {
+	var factoryJson safetyReq.SafetyFactoryJson
+	factoryJson.SafetyFactory = factory
+	factoryJson.City = ""
+	factoryJson.ProvinceCity = strings.Split(factory.City, ",")
+
+	return factoryJson
+}
+
+func factoryList2FactoryJsonList (factoryList []safety.SafetyFactory) []safetyReq.SafetyFactoryJson {
+	var factoryJsonList []safetyReq.SafetyFactoryJson
+	for _, factory := range factoryList {
+		var factoryJson safetyReq.SafetyFactoryJson
+		factoryJson.SafetyFactory = factory
+		factoryJson.City = ""
+		factoryJson.ProvinceCity = strings.Split(factory.City, ",")
+		factoryJsonList = append(factoryJsonList, factoryJson)
 	}
-}*/
+	return factoryJsonList
+}
 
 // DeleteSafetyFactory 删除SafetyFactory
 // @Tags SafetyFactory
@@ -209,9 +193,9 @@ func (safetyFactoryApi *SafetyFactoryApi) UpdateSafetyFactory(c *gin.Context) {
 
 // @Router /safetyFactory/updateFactoryLatLng [put]
 func (safetyFactoryApi *SafetyFactoryApi) UpdateFactoryLatLng(c *gin.Context) {
-	var safetyFactory safety.SafetyFactory
+	var safetyFactory safetyReq.SafetyFactoryJson
 	_ = c.ShouldBindJSON(&safetyFactory)
-	if err := safetyFactoryService.UpdateFactoryLatLng(safetyFactory); err != nil {
+	if err := safetyFactoryService.UpdateFactoryLatLng(factoryJson2Factory(safetyFactory)); err != nil {
 		global.GVA_LOG.Error("更新经纬度失败!", zap.Error(err))
 		response.FailWithMessage("更新经纬度失败", c)
 	} else {
@@ -247,7 +231,7 @@ func (safetyFactoryApi *SafetyFactoryApi) QuerySafetyFactory(c *gin.Context) {
 		global.GVA_LOG.Error("查询失败!", zap.Error(err))
 		response.FailWithMessage("查询失败", c)
 	} else {
-		response.OkWithDetailed(resafetyFactory, "获取成功", c)
+		response.OkWithDetailed(factory2FactoryJson(resafetyFactory), "获取成功", c)
 	}
 }
 
@@ -273,7 +257,7 @@ func (safetyFactoryApi *SafetyFactoryApi) GetSafetyFactoryList(c *gin.Context) {
         response.FailWithMessage("获取失败", c)
     } else {
         response.OkWithDetailed(response.PageResult{
-            List:     list,
+            List:     factoryList2FactoryJsonList(list.([]safety.SafetyFactory)),
             Total:    total,
             Page:     pageInfo.Page,
             PageSize: pageInfo.PageSize,

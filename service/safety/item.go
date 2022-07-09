@@ -1,12 +1,12 @@
 package safety
 
 import (
-	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
-    safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
-	"gorm.io/gorm"
 	"errors"
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
+	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -97,23 +97,24 @@ func (itemService *ItemService)GetAllValidItemList(period string) (error, []safe
 	var items []safety.Item
 	curTime := time.Now().Format("2006-01-02 15:04:05")
 	err := db.Find(&items, "enable = 1 AND start_time < ? AND end_time > ? AND period = ?", curTime, curTime, period).Error
+	
 	return err, items
 }
 
 // GetItemInfoListByArea 分页获取Item记录
 // Author [piexlmax](https://github.com/piexlmax)
-func (itemService *ItemService)GetItemInfoListByLeafAreaId(info safetyReq.ItemSearch) (err error, list interface{}, total int64) {
+func (itemService *ItemService)GetItemInfoListByLeafAreaId(info safetyReq.ItemSearch, inIdList string) (err error, list interface{}, total int64) {
 	limit := info.PageSize
 	offset := info.PageSize * (info.Page - 1)
 	// 创建db
 	db := global.GVA_DB.Model(&safety.Item{})
 	var items []safety.Item
 	// 如果有条件搜索 下方会自动创建搜索语句
-	err = db.Where("factory_name = ? And area_id = ?", info.FactoryName, info.AreaId).Count(&total).Error
+	err = db.Where("factory_name = ? And area_id in (?)", info.FactoryName, inIdList).Count(&total).Error
 	if err!=nil {
 		return
 	}
-	err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? And area_id = ?", info.FactoryName, info.AreaId).Error
+	err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? And area_id in (?)", info.FactoryName, inIdList).Error
 	return err, items, total
 }
 

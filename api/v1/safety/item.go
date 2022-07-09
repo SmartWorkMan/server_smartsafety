@@ -10,6 +10,8 @@ import (
 	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"strconv"
+	"time"
 )
 
 type ItemApi struct {
@@ -137,10 +139,19 @@ func (itemApi *ItemApi) DeleteItem(c *gin.Context) {
 			return
 		}
 
+		curDate := time.Now().Format("2006-01-02")
 		for _, task := range tasks {
-			if task.TaskStatus != commval.TaskStatusNotStart {
+			if task.TaskStatus == commval.TaskStatusAssignTask ||
+				task.TaskStatus == commval.TaskStatusReportIssue ||
+				task.TaskStatus == commval.TaskStatusApproval {
 				global.GVA_LOG.Error("删除巡检事项失败!巡检事项下任务已开始!")
 				response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "删除巡检事项失败!巡检事项下任务已开始!", c)
+				return
+			}
+
+			if task.TaskStatus == commval.TaskStatusEnd && task.PlanInspectionDate == curDate {
+				global.GVA_LOG.Error("删除巡检事项失败!巡检事项下今日任务已结束!", zap.Error(err))
+				response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "删除巡检事项失败!巡检事项下今日任务已结束!", c)
 				return
 			}
 		}
@@ -234,19 +245,30 @@ func (itemApi *ItemApi) UpdateItem(c *gin.Context) {
 			response.FailWithMessage("更新巡检事项失败", c)
 			return
 		}
-		if len(tasks) == 0 || tasks[0].TaskStatus == commval.TaskStatusNotStart {
-			err = itemApi.updateItem(itemUpdate.Item)
-			if err != nil {
-				global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
-				response.FailWithMessage("更新巡检事项失败", c)
+
+		curDate := time.Now().Format("2006-01-02")
+		for _, theTask := range tasks {
+			if theTask.TaskStatus == commval.TaskStatusAssignTask ||
+				theTask.TaskStatus == commval.TaskStatusReportIssue ||
+				theTask.TaskStatus == commval.TaskStatusApproval {
+				global.GVA_LOG.Error("更新巡检事项失败!巡检事项下任务已开始!", zap.Error(err))
+				response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "更新巡检事项失败!巡检事项下任务已开始!", c)
 				return
 			}
-			response.OkWithMessage("更新巡检事项成功", c)
-		} else {
-			global.GVA_LOG.Error("更新巡检事项失败!巡检事项下任务已开始!", zap.Error(err))
-			response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "更新巡检事项失败!巡检事项下任务已开始!", c)
+			if theTask.TaskStatus == commval.TaskStatusEnd && theTask.PlanInspectionDate == curDate {
+				global.GVA_LOG.Error("更新巡检事项失败!巡检事项下今日任务已结束!", zap.Error(err))
+				response.FailWithDetailed(safetyReq.ItemUpdateAndDeleteRes{TaskExist: 1}, "更新巡检事项失败!巡检事项下今日任务已结束!", c)
+				return
+			}
+		}
+
+		err = itemApi.updateItem(itemUpdate.Item)
+		if err != nil {
+			global.GVA_LOG.Error("更新巡检事项失败!", zap.Error(err))
+			response.FailWithMessage("更新巡检事项失败", c)
 			return
 		}
+		response.OkWithMessage("更新巡检事项成功", c)
 	}
 }
 
@@ -328,29 +350,38 @@ func (itemApi *ItemApi) GetItemListByAreaId(c *gin.Context) {
 	if err != nil {
 		global.GVA_LOG.Error("获取巡检事项列表失败!", zap.Error(err))
 		response.FailWithMessage("获取巡检事项列表失败", c)
+		return
 	}
 
 	//global.GVA_LOG.Info(fmt.Sprintf("areaId:%d的所有叶子节点ID:%v", reqArea.ID, leafAreaIdList))
 	//获取item list
-	var itemList []safety.Item
-	var itemTotal int64
-	for _, leafAreaId := range leafAreaIdList {
-		pageInfo.AreaId = leafAreaId
-		if err, list, total := itemService.GetItemInfoListByLeafAreaId(pageInfo); err != nil {
-			global.GVA_LOG.Error("获取巡检事项列表失败!", zap.Error(err))
-			response.FailWithMessage("获取巡检事项列表失败", c)
-		} else {
-			itemList = append(itemList, list.([]safety.Item)...)
-			itemTotal += total
+	var inIdList string
+
+	if len(leafAreaIdList) == 1 {
+		inIdList = strconv.Itoa(int(leafAreaIdList[0]))
+	} else {
+		for index, leafAreaId := range leafAreaIdList {
+			if index != len(leafAreaIdList) - 1 {
+				inIdList += strconv.Itoa(int(leafAreaId)) + ","
+			} else {
+				inIdList += strconv.Itoa(int(leafAreaId))
+			}
 		}
 	}
 
-	response.OkWithDetailed(response.PageResult{
-		List:     itemList,
-		Total:    itemTotal,
-		Page:     pageInfo.Page,
-		PageSize: pageInfo.PageSize,
-	}, "获取巡检事项列表成功", c)
+	global.GVA_LOG.Info(fmt.Sprintf("inIdList:%s", inIdList))
+	if err, list, total := itemService.GetItemInfoListByLeafAreaId(pageInfo, inIdList); err != nil {
+		global.GVA_LOG.Error("获取巡检事项列表失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检事项列表失败", c)
+		return
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检事项列表成功", c)
+	}
 }
 
 // @Router /item/enableItem [put]

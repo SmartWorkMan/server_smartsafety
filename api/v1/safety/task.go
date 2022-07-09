@@ -222,6 +222,24 @@ func (taskApi *TaskApi) ApproveTask(c *gin.Context) {
 	}
 }
 
+// @Router /task/rejectTask [put]
+func (taskApi *TaskApi) RejectTask(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.ID == 0 || task.AdminComment == ""{
+		global.GVA_LOG.Error("拒绝审批任务失败!请检查请求信息!")
+		response.FailWithMessage("拒绝审批任务失败!请检查请求信息!", c)
+		return
+	}
+
+	if err := taskService.RejectTask(task); err != nil {
+		global.GVA_LOG.Error("拒绝审批任务失败!", zap.Error(err))
+		response.FailWithMessage("拒绝审批任务失败", c)
+	} else {
+		response.OkWithMessage("拒绝审批任务成功", c)
+	}
+}
+
 // FindTask 用id查询Task
 // @Tags Task
 // @Summary 用id查询Task
@@ -350,7 +368,7 @@ func (taskApi *TaskApi) GetTaskHistory(c *gin.Context) {
 
 	_ = c.ShouldBindJSON(&pageInfo)
 	pageInfo.FactoryName = curUser.FactoryName
-	if pageInfo.TaskStatus == commval.TaskStatusNotStart {
+	if pageInfo.TaskStatusStr == "" {
 		global.GVA_LOG.Error("获取巡检历史记录失败!请输入正确的记录类型!")
 		response.FailWithMessage("获取巡检历史记录失败!请输入正确的记录类型!", c)
 		return
@@ -464,6 +482,38 @@ func (taskApi *TaskApi) GetTaskHistoryByStatusStrForAppAdmin(c *gin.Context) {
 	}
 }
 
+// @Router /task/app/inspectorGetTaskHistoryByStatusStr [post]
+func (taskApi *TaskApi) GetTaskHistoryByStatusStrForInspector(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.TaskStatusStr == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!任务状态不能为空!")
+		response.FailWithMessage("获取巡检历史记录失败!任务状态不能为空!", c)
+		return
+	}
+	if pageInfo.FactoryName == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!工厂名称不能为空!")
+		response.FailWithMessage("获取巡检历史记录失败!工厂名称不能为空!", c)
+		return
+	}
+	if pageInfo.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取巡检历史记录失败!巡检员用户名不能为空!")
+		response.FailWithMessage("获取巡检历史记录失败!巡检员用户名不能为空!", c)
+		return
+	}
+
+	if err, list, total := taskService.GetTaskHistoryByStatusStrForInspector(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
 
 // @Router /task/app/getTaskListByArea [post]
 func (taskApi *TaskApi) GetTaskListByArea(c *gin.Context) {
@@ -604,3 +654,181 @@ func (taskApi *TaskApi) GetAssignTaskListForAppAdmin(c *gin.Context) {
 		}, "获取任务列表成功", c)
 	}
 }
+
+// @Router /screen/getNormalTaskCount [post]
+func (taskApi *TaskApi) GetNormalTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, total := taskService.GetNormalTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取成功", c)
+	}
+}
+
+// @Router /screen/getPendingTaskCount [post]
+func (taskApi *TaskApi) GetPendingTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, total := taskService.GetPendingTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取成功", c)
+	}
+}
+
+// @Router /screen/getFixedTaskCount [post]
+func (taskApi *TaskApi) GetFixedTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, total := taskService.GetFixedTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取成功", c)
+	}
+}
+
+// @Router /screen/getNotFixedTaskCount [post]
+func (taskApi *TaskApi) GetNotFixedTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, total := taskService.GetNotFixedTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取成功", c)
+	}
+}
+
+// @Router /screen/getTopFailureItems [post]
+func (taskApi *TaskApi) GetTopFailureItems(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, list := taskService.GetTopFailureItems(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+		}, "获取成功", c)
+	}
+}
+
+// @Router /screen/getFixedStatistics [post]
+func (taskApi *TaskApi) GetFixedStatistics(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, fixedTotal, notFixedTotal := taskService.GetFixedStatistics(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(map[string]int64{"fixedTotal":fixedTotal, "notFixedTotal":notFixedTotal}, "获取成功", c)
+	}
+}
+
+// @Router /screen/getWeeklyHealthIndex [post]
+func (taskApi *TaskApi) GetWeeklyHealthIndex(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, index := taskService.GetWeeklyHealthIndex(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(index, "获取成功", c)
+	}
+}
+
+// @Router /screen/getWeeklyFixedCurve [post]
+func (taskApi *TaskApi) GetWeeklyFixedCurve(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+
+	if task.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, curve := taskService.GetWeeklyFixedCurve(task); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(curve, "获取成功", c)
+	}
+}
+
+// @Router /screen/getStartInspectInfo [post]
+func (taskApi *TaskApi) GetStartInspectInfo(c *gin.Context) {
+	var pageInfo safetyReq.TaskSearch
+	_ = c.ShouldBindJSON(&pageInfo)
+	if pageInfo.FactoryName == "" {
+		global.GVA_LOG.Error("获取失败!工厂名称不能为空!")
+		response.FailWithMessage("获取失败!工厂名称不能为空!", c)
+		return
+	}
+
+	if err, list, total := taskService.GetStartInspectInfo(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取失败!", zap.Error(err))
+		response.FailWithMessage("获取失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取成功", c)
+	}
+}
+

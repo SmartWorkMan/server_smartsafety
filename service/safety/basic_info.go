@@ -1,12 +1,12 @@
 package safety
 
 import (
-	"github.com/flipped-aurora/gin-vue-admin/server/global"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
-	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
-    safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
-	"gorm.io/gorm"
 	"errors"
+	"github.com/flipped-aurora/gin-vue-admin/server/global"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/common/request"
+	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
+	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
+	"gorm.io/gorm"
 )
 
 type BasicInfoService struct {

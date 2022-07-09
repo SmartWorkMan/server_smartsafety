@@ -46,7 +46,7 @@ func (safetyFactoryService *SafetyFactoryService)UpdateSafetyFactory(safetyFacto
 
 func (safetyFactoryService *SafetyFactoryService)UpdateFactoryLatLng(safetyFactory safety.SafetyFactory) (err error) {
 	db := global.GVA_DB.Model(&safety.SafetyFactory{})
-	updateFactory := safety.SafetyFactory{ Lat: safetyFactory.Lat, Lng: safetyFactory.Lng}
+	updateFactory := safety.SafetyFactory{ Lat: safetyFactory.Lat, Lng: safetyFactory.Lng, City: safetyFactory.City, Addr: safetyFactory.Addr}
 	err = db.Where("id = ?", safetyFactory.ID).Updates(updateFactory).Error
 	return err
 }

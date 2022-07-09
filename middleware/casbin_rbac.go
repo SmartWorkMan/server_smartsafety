@@ -6,6 +6,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/service"
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
+	"strings"
 )
 
 var casbinService = service.ServiceGroupApp.SystemServiceGroup.CasbinService
@@ -15,6 +16,11 @@ func CasbinHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		appFlag := c.Request.Header.Get("x-app-flag")
 		if appFlag != "" {
+			c.Next()
+			return
+		}
+
+		if strings.HasPrefix(c.Request.URL.String(), "/training/sighInTraining") {
 			c.Next()
 			return
 		}

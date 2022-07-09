@@ -20,6 +20,7 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouter.DELETE("deleteTaskByIds", taskApi.DeleteTaskByIds) // 批量删除Task
 		taskRouter.PUT("assignTask", taskApi.AssignTask)    // 维保管理员下派任务
 		taskRouter.PUT("approveTask", taskApi.ApproveTask)    // 巡检管理员审批任务
+		taskRouter.PUT("rejectTask", taskApi.RejectTask)    // 巡检管理员拒绝审批任务
 	}
 	{
 		taskRouterWithoutRecord.GET("findTask", taskApi.FindTask)        // 根据ID获取Task
@@ -35,6 +36,7 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouterWithoutRecord.POST("app/getTaskListByArea", taskApi.GetTaskListByArea)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getTaskListByStatus", taskApi.GetTaskListByStatus)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getTaskHistoryByStatusStr", taskApi.GetTaskHistoryByStatusStrForAppAdmin)  // 巡检员获取指定区域巡检任务
+		taskRouterWithoutRecord.POST("app/inspectorGetTaskHistoryByStatusStr", taskApi.GetTaskHistoryByStatusStrForInspector)
 		taskRouterWithoutRecord.POST("app/getFaultTaskList", taskApi.GetFaultTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getApprovalTaskList", taskApi.GetApprovalTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getAssignTaskList", taskApi.GetAssignTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务

@@ -13,6 +13,8 @@ type SafetyFactory struct {
       FactoryName  string `json:"factoryName" form:"factoryName" gorm:"column:factory_name;comment:工厂名称;size:191;"`
 	  Lat  string `json:"lat" form:"lat" gorm:"column:lat;comment:工厂位置纬度;size:191;"`
 	  Lng  string `json:"lng" form:"lng" gorm:"column:lng;comment:工厂位置经度;size:191;"`
+	  City  string `json:"city" form:"city" gorm:"column:city;comment:省市;size:191;"`
+	  Addr  string `json:"addr" form:"addr" gorm:"column:addr;comment:详细地址;size:191;"`
 }
 
 

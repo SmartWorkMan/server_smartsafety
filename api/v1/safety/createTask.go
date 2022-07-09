@@ -34,9 +34,10 @@ func GenerateTask(period string) {
 		task.ItemId = item.ID
 		task.TaskStatus = commval.TaskStatusNotStart
 		task.TaskStatusStr = commval.TaskStatus[commval.TaskStatusNotStart]
+		task.AdminComment = ""
 
 		if taskService.IsExistActiveTask(task) {
-			global.GVA_LOG.Warn(fmt.Sprintf("巡检事项存在未完成任务,此次不生成,factoryName:%s, areaName:%s, itemName:%s", task.FactoryName, task.AreaName, task.ItemName))
+			global.GVA_LOG.Warn(fmt.Sprintf("巡检事项存在未完成任务,此次不生成,factoryName:%s, itemId:%d, inspectorUsername:%s", task.FactoryName, item.ID, item.InspectorUsername))
 			continue
 		}
 

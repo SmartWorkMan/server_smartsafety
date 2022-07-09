@@ -120,7 +120,7 @@ func (clockService *ClockService)GetHistoryClockList(info safetyReq.ClockSearch)
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
-		Column: clause.Column{Table: clause.CurrentTable, Name: "clock_out_time"},
+		Column: clause.Column{Table: clause.CurrentTable, Name: "clock_in_time"},
 		Desc:   true,
 	}).Offset(offset).Where("factory_name = ? AND inspector_username = ?", info.FactoryName, info.InspectorUsername).Find(&clocks).Error
 	return err, clocks, total

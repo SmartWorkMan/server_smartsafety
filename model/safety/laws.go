@@ -13,7 +13,8 @@ type Laws struct {
       LawStatus  string `json:"lawStatus" form:"lawStatus" gorm:"column:law_status;comment:法律状态;size:191;"`
       LawType  string `json:"lawType" form:"lawType" gorm:"column:law_type;comment:法律类型;size:191;"`
       ReleaseTime  string `json:"releaseTime" form:"releaseTime" gorm:"column:release_time;comment:发布时间;size:191;"`
-      StoreAddr  string `json:"storeAddr" form:"storeAddr" gorm:"column:store_addr;comment:存储地址;size:191;"`
+      StoreAddr  string `json:"storeAddr" form:"storeAddr" gorm:"column:store_addr;comment:存储地址;size:1000;"`
+      FileName  string `json:"fileName" form:"fileName" gorm:"column:file_name;comment:文件名称;size:191;"`
 }
 
 

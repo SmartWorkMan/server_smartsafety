@@ -9,3 +9,8 @@ type SafetyFactorySearch struct{
     safety.SafetyFactory
     request.PageInfo
 }
+
+type SafetyFactoryJson struct{
+	safety.SafetyFactory
+	ProvinceCity  []string `json:"provinceCity"`
+}
