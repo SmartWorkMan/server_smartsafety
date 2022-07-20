@@ -28,9 +28,9 @@ func (taskService *TaskService) CreateTask(inputTask safety.Task) (err error) {
 }
 
 func (taskService *TaskService) CreateTaskHistory(inputTask safety.Task) (err error) {
-	if inputTask.TaskStatus == 0 {
-		return errors.New("未开始任务不需要记录")
-	}
+	//if inputTask.TaskStatus == 0 {
+	//	return errors.New("未开始任务不需要记录")
+	//}
 
 	var inputTaskHistory safety.TaskHistory
 	inputTaskHistory.Task = inputTask
@@ -39,8 +39,10 @@ func (taskService *TaskService) CreateTaskHistory(inputTask safety.Task) (err er
 	inputTaskHistory.CreatedAt = zeroTime
 	inputTaskHistory.UpdatedAt = zeroTime
 	inputTaskHistory.DeletedAt = zeroDelTime
-	curTime := time.Now().Format("2006-01-02 15:04:05")
-	inputTaskHistory.ActualInspectionTime = curTime
+	if inputTask.TaskStatus != commval.TaskStatusTimeOut {
+		curTime := time.Now().Format("2006-01-02 15:04:05")
+		inputTaskHistory.ActualInspectionTime = curTime
+	}
 	inputTaskHistory.TaskId = inputTaskHistory.ID
 	inputTaskHistory.ID = 0
 
@@ -132,8 +134,13 @@ func (taskService *TaskService)RejectTask(task safety.Task) (err error) {
 
 	db := global.GVA_DB.Model(&safety.Task{})
 	curTime := time.Now().Format("2006-01-02 15:04:05")
-	updateTask := safety.Task{ TaskStatus: curTask.TaskStatus, TaskStatusStr: commval.TaskStatus[curTask.TaskStatus], ActualInspectionTime: curTime, AdminComment: task.AdminComment}
-	err = db.Where("id = ?", task.ID).Updates(updateTask).Error
+	updateMap := make(map[string]interface{})
+	updateMap["task_status"] = curTask.TaskStatus
+	updateMap["task_status_str"] = commval.TaskStatus[curTask.TaskStatus]
+	updateMap["actual_inspection_time"] = curTime
+	updateMap["admin_comment"] = task.AdminComment
+
+	err = db.Where("id = ?", task.ID).Updates(updateMap).Error
 	if err != nil {
 		return err
 	}
@@ -230,6 +237,26 @@ func (taskService *TaskService)GetTaskHistory(info safetyReq.ReqTaskHistory) (er
 			Desc:   true,
 		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str = ?", info.FactoryName, info.TaskStatusStr).Error
 	}
+	return err, tasks, total
+}
+
+func (taskService *TaskService)GetTimeOutTaskHistory(info safetyReq.ReqTaskHistory) (err error, list interface{}, total int64) {
+	limit := info.PageSize
+	offset := info.PageSize * (info.Page - 1)
+
+	// 创建db
+	db := global.GVA_DB.Model(&safety.TaskHistory{})
+	var tasks []safety.TaskHistory
+
+	err = db.Where("factory_name = ? AND task_status = ? ", info.FactoryName, commval.TaskStatusTimeOut).Count(&total).Error
+	if err!=nil {
+		return
+	}
+	err = db.Limit(limit).Order(clause.OrderByColumn{
+		Column: clause.Column{Table: clause.CurrentTable, Name: "plan_inspection_date"},
+		Desc:   true,
+	}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status = ? ", info.FactoryName, commval.TaskStatusTimeOut).Error
+
 	return err, tasks, total
 }
 
@@ -624,4 +651,36 @@ func (taskService *TaskService)GetStartInspectInfo(info safetyReq.TaskSearch) (e
 	return err, tasks, total
 }
 
+func (taskService *TaskService)GetTimeOutTaskList() (err error, list []safety.Task) {
+	db := global.GVA_DB.Model(&safety.Task{})
+	var tasks []safety.Task
+	curDate := time.Now().Format("2006-01-02")
+	err = db.Find(&tasks, "plan_inspection_date = ? AND task_status != 4", curDate).Error
+	return err, tasks
+}
 
+func (taskService *TaskService)GetInspectorTimeOutTaskCount(task safety.Task) (err error, total int64) {
+	db := global.GVA_DB.Model(&safety.TaskHistory{})
+	err = db.Where("factory_name = ? AND inspector_username = ? AND task_status = ?", task.FactoryName, task.InspectorUsername, commval.TaskStatusTimeOut).Count(&total).Error
+	return err, total
+}
+
+func (taskService *TaskService)GetInspectorTodayInspectTaskCount(task safety.Task) (err error, total int64) {
+	db := global.GVA_DB.Model(&safety.Task{})
+	curDate := time.Now().Format("2006-01-02")
+	err = db.Where("factory_name = ? AND inspector_username = ? AND left(actual_inspection_time, 10) = ? AND task_status != ?", task.FactoryName, task.InspectorUsername, curDate, commval.TaskStatusNotStart).Count(&total).Error
+	return err, total
+}
+
+func (taskService *TaskService)GetInspectorNotFixedTaskCount(task safety.Task) (err error, total int64) {
+	db := global.GVA_DB.Model(&safety.Task{})
+	err = db.Where("factory_name = ? AND inspector_username = ? AND task_status in (1,2,3)", task.FactoryName, task.InspectorUsername).Count(&total).Error
+	return err, total
+}
+
+func (taskService *TaskService)GetInspectorTodayNotInspectTaskCount(task safety.Task) (err error, total int64) {
+	db := global.GVA_DB.Model(&safety.Task{})
+	curDate := time.Now().Format("2006-01-02")
+	err = db.Where("factory_name = ? AND inspector_username = ? AND plan_inspection_date = ? AND task_status = ?", task.FactoryName, task.InspectorUsername, curDate, commval.TaskStatusNotStart).Count(&total).Error
+	return err, total
+}

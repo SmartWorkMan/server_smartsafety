@@ -47,6 +47,8 @@ const (
 	ItemPeriodDay string = "重复日"
 	ItemPeriodWeek string = "重复周"
 	ItemPeriodMonth string = "重复月"
+	ItemPeriodQuarter string = "重复季度"
+	ItemPeriodSemester string = "重复半年"
 )
 
 const (
@@ -74,10 +76,12 @@ const (
 	TaskStatusAssignTask
 	TaskStatusApproval
 	TaskStatusEnd
+	TaskStatusTimeOut
 )
 
 const (
 	CronTaskTime int = 2 //每日执行定时任务时间点,凌晨2点
+	TimeOutTaskCronTime int = 23
 )
 
 var TaskStatus map[int]string

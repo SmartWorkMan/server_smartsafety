@@ -9,8 +9,8 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/model/safety"
 	safetyReq "github.com/flipped-aurora/gin-vue-admin/server/model/safety/request"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"go.uber.org/zap"
-	"strconv"
 	"time"
 )
 
@@ -42,7 +42,9 @@ func (itemApi *ItemApi) CreateItem(c *gin.Context) {
 
 	if item.Period != commval.ItemPeriodDay &&
 		item.Period != commval.ItemPeriodWeek &&
-		item.Period != commval.ItemPeriodMonth {
+		item.Period != commval.ItemPeriodMonth &&
+		item.Period != commval.ItemPeriodQuarter &&
+		item.Period != commval.ItemPeriodSemester {
 		global.GVA_LOG.Error(fmt.Sprintf("创建巡检事项失败!不支持周期%s", item.Period))
 		response.FailWithMessage(fmt.Sprintf("创建巡检事项失败!不支持周期%s", item.Period), c)
 		return
@@ -310,9 +312,18 @@ func (itemApi *ItemApi) GetItemList(c *gin.Context) {
 	}
 
 	var pageInfo safetyReq.ItemSearch
-	_ = c.ShouldBindJSON(&pageInfo)
+	_ = c.ShouldBindBodyWith(&pageInfo, binding.JSON)
 	pageInfo.FactoryName = curUser.FactoryName
-	if err, list, total := itemService.GetItemInfoList(pageInfo); err != nil {
+
+	bodyMap := make(map[string]interface{})
+	enableExist := true
+	_ = c.ShouldBindBodyWith(&bodyMap, binding.JSON)
+	_, ok := bodyMap["enable"]
+	if !ok {
+		enableExist = false
+	}
+
+	if err, list, total := itemService.GetItemInfoList(pageInfo, enableExist); err != nil {
 	    global.GVA_LOG.Error("获取巡检事项列表失败!", zap.Error(err))
         response.FailWithMessage("获取巡检事项列表失败", c)
     } else {
@@ -353,24 +364,8 @@ func (itemApi *ItemApi) GetItemListByAreaId(c *gin.Context) {
 		return
 	}
 
-	//global.GVA_LOG.Info(fmt.Sprintf("areaId:%d的所有叶子节点ID:%v", reqArea.ID, leafAreaIdList))
-	//获取item list
-	var inIdList string
-
-	if len(leafAreaIdList) == 1 {
-		inIdList = strconv.Itoa(int(leafAreaIdList[0]))
-	} else {
-		for index, leafAreaId := range leafAreaIdList {
-			if index != len(leafAreaIdList) - 1 {
-				inIdList += strconv.Itoa(int(leafAreaId)) + ","
-			} else {
-				inIdList += strconv.Itoa(int(leafAreaId))
-			}
-		}
-	}
-
-	global.GVA_LOG.Info(fmt.Sprintf("inIdList:%s", inIdList))
-	if err, list, total := itemService.GetItemInfoListByLeafAreaId(pageInfo, inIdList); err != nil {
+	global.GVA_LOG.Info(fmt.Sprintf("areaId:%d的所有叶子节点ID:%v", reqArea.ID, leafAreaIdList))
+	if err, list, total := itemService.GetItemInfoListByLeafAreaId(pageInfo, leafAreaIdList); err != nil {
 		global.GVA_LOG.Error("获取巡检事项列表失败!", zap.Error(err))
 		response.FailWithMessage("获取巡检事项列表失败", c)
 		return

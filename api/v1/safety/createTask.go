@@ -133,6 +133,111 @@ func monthlyTask(dateTime time.Time) {
 	}
 }
 
+func quarterTask(dateTime time.Time) {
+	for {
+		now := time.Now()
+		next := time.Date(now.Year(), now.Month(), now.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+		// 检查是否超过当日的时间
+		if next.Sub(now) < 0 {
+			global.GVA_LOG.Info(fmt.Sprintf("执行时间未到, 日期:%s", now.String()))
+			next = now.Add(time.Hour * 24 * 30 * 3)
+			next = time.Date(next.Year(), next.Month(), next.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+
+			var period safety.ItemNextPeriodDate
+			period.Period = commval.ItemPeriodQuarter
+			period.NextDate  = next.Format("2006-01-02")
+			period.Interval = 30 * 3
+			var err error
+			if itemService.IsPeriodExist(period) {
+				err = itemService.UpdateNextPeriodDate(period)
+			} else {
+				err = itemService.CreateNextPeriodDate(period)
+			}
+			if err != nil {
+				global.GVA_LOG.Error("设置下一个重复季度开始日期失败!", zap.Error(err))
+			}
+		}
+		// 阻塞到执行时间
+		t := time.NewTimer(next.Sub(now))
+		<-t.C
+		// 执行的任务内容
+		GenerateTask(commval.ItemPeriodQuarter)
+	}
+}
+
+func semesterTask(dateTime time.Time) {
+	for {
+		now := time.Now()
+		next := time.Date(now.Year(), now.Month(), now.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+		// 检查是否超过当日的时间
+		if next.Sub(now) < 0 {
+			global.GVA_LOG.Info(fmt.Sprintf("执行时间未到, 日期:%s", now.String()))
+			next = now.Add(time.Hour * 24 * 30 * 6)
+			next = time.Date(next.Year(), next.Month(), next.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+
+			var period safety.ItemNextPeriodDate
+			period.Period = commval.ItemPeriodSemester
+			period.NextDate  = next.Format("2006-01-02")
+			period.Interval = 30 * 6
+			var err error
+			if itemService.IsPeriodExist(period) {
+				err = itemService.UpdateNextPeriodDate(period)
+			} else {
+				err = itemService.CreateNextPeriodDate(period)
+			}
+			if err != nil {
+				global.GVA_LOG.Error("设置下一个重复半年开始日期失败!", zap.Error(err))
+			}
+		}
+		// 阻塞到执行时间
+		t := time.NewTimer(next.Sub(now))
+		<-t.C
+		// 执行的任务内容
+		GenerateTask(commval.ItemPeriodSemester)
+	}
+}
+
+func timeOutTask(dateTime time.Time) {
+	for {
+		now := time.Now()
+		next := time.Date(now.Year(), now.Month(), now.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+		// 检查是否超过当日的时间
+		if next.Sub(now) < 0 {
+			global.GVA_LOG.Info(fmt.Sprintf("超时任务执行时间未到, 日期:%s", now.String()))
+			next = now.Add(time.Hour * 24)
+			next = time.Date(next.Year(), next.Month(), next.Day(), dateTime.Hour(), dateTime.Minute(), dateTime.Second(), dateTime.Nanosecond(), dateTime.Location())
+		}
+		// 阻塞到执行时间
+		t := time.NewTimer(next.Sub(now))
+		<-t.C
+		// 执行的任务内容
+		err, taskList := taskService.GetTimeOutTaskList()
+		if err != err {
+			global.GVA_LOG.Error(fmt.Sprintf("获取超时任务失败, 日期:%s, err:%v", now.String(), err))
+			return
+		}
+
+		for _, task := range taskList {
+			var clock safety.Clock
+			clock.InspectorUsername = task.InspectorUsername
+			clock.ClockDate = task.PlanInspectionDate
+			err, clock := clockService.QueryClock(clock)
+			if err != nil {
+				global.GVA_LOG.Error(fmt.Sprintf("获取巡检员:%s打卡失败, 日期:%s, err:%v", task.InspectorUsername, now.String(), err))
+				continue
+			}
+
+			if clock.ClockInTime != "" {
+				task.TaskStatus = commval.TaskStatusTimeOut
+				err = taskService.CreateTaskHistory(task)
+				if err != nil {
+					global.GVA_LOG.Error(fmt.Sprintf("生成超时任务记录失败, 巡检员:%s, 日期:%s, err:%v", task.InspectorUsername, now.String(), err))
+				}
+			}
+		}
+	}
+}
+
 func DoCronTask() {
 	now := time.Now()
 	dateTime := time.Date(now.Year(), now.Month(), now.Day(), commval.CronTaskTime, 00, 0, 0, now.Location())
@@ -140,5 +245,10 @@ func DoCronTask() {
 	go dailyTask(dateTime)
 	go weeklyTask(dateTime)
 	go monthlyTask(dateTime)
+	go quarterTask(dateTime)
+	go semesterTask(dateTime)
+
+	timeOutTaskTime := time.Date(now.Year(), now.Month(), now.Day(), commval.TimeOutTaskCronTime, 00, 0, 0, now.Location())
+	go timeOutTask(timeOutTaskTime)
 }
 

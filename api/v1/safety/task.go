@@ -48,6 +48,8 @@ func (taskApi *TaskApi) TempCreateTask(c *gin.Context) {
 	GenerateTask(commval.ItemPeriodDay)
 	GenerateTask(commval.ItemPeriodWeek)
 	GenerateTask(commval.ItemPeriodMonth)
+	GenerateTask(commval.ItemPeriodQuarter)
+	GenerateTask(commval.ItemPeriodSemester)
 	response.OkWithMessage("创建巡检任务成功(此API只为测试使用,上线后删除)", c)
 }
 
@@ -386,6 +388,33 @@ func (taskApi *TaskApi) GetTaskHistory(c *gin.Context) {
 		}, "获取巡检历史记录成功", c)
 	}
 }
+
+// @Router /task/getTimeOutTaskHistory [post]
+func (taskApi *TaskApi) GetTimeOutTaskHistory(c *gin.Context) {
+	var pageInfo safetyReq.ReqTaskHistory
+	err, curUser := GetCurUser(c)
+	if err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败!", c)
+		return
+	}
+
+	_ = c.ShouldBindJSON(&pageInfo)
+	pageInfo.FactoryName = curUser.FactoryName
+
+	if err, list, total := taskService.GetTimeOutTaskHistory(pageInfo); err != nil {
+		global.GVA_LOG.Error("获取巡检历史记录失败!", zap.Error(err))
+		response.FailWithMessage("获取巡检历史记录失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     taskHistoryList2TaskReportList(list.([]safety.TaskHistory)),
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取巡检历史记录成功", c)
+	}
+}
+
 
 // @Router /task/app/getTaskHistoryByItem [post]
 func (taskApi *TaskApi) GetTaskHistoryByItem(c *gin.Context) {
@@ -832,3 +861,75 @@ func (taskApi *TaskApi) GetStartInspectInfo(c *gin.Context) {
 	}
 }
 
+
+// @Router /task/app/getInspectorTimeOutTaskCount [post]
+func (taskApi *TaskApi) GetInspectorTimeOutTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.FactoryName == "" || task.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取超时任务数量失败!请检查输入!")
+		response.FailWithMessage("获取超时任务数量失败!请检查输入!", c)
+		return
+	}
+
+	if err, total := taskService.GetInspectorTimeOutTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取超时任务数量失败!", zap.Error(err))
+		response.FailWithMessage("获取超时任务数量失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取超时任务数量成功", c)
+	}
+}
+
+// @Router /task/app/getInspectorTodayInspectTaskCount [post]
+func (taskApi *TaskApi) GetInspectorTodayInspectTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.FactoryName == "" || task.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取已巡检任务数量失败!请检查输入!")
+		response.FailWithMessage("获取已巡检任务数量失败!请检查输入!", c)
+		return
+	}
+
+	if err, total := taskService.GetInspectorTodayInspectTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取已巡检任务数量失败!", zap.Error(err))
+		response.FailWithMessage("获取已巡检任务数量失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取已巡检任务数量成功", c)
+	}
+}
+
+// @Router /task/app/getInspectorNotFixedTaskCount [post]
+func (taskApi *TaskApi) GetInspectorNotFixedTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.FactoryName == "" || task.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取完成任务数量失败!请检查输入!")
+		response.FailWithMessage("获取完成任务数量失败!请检查输入!", c)
+		return
+	}
+
+	if err, total := taskService.GetInspectorNotFixedTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取完成任务数量失败!", zap.Error(err))
+		response.FailWithMessage("获取完成任务数量失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取完成任务数量成功", c)
+	}
+}
+
+// @Router /task/app/getInspectorTodayNotInspectTaskCount [post]
+func (taskApi *TaskApi) GetInspectorTodayNotInspectTaskCount(c *gin.Context) {
+	var task safety.Task
+	_ = c.ShouldBindJSON(&task)
+	if task.FactoryName == "" || task.InspectorUsername == "" {
+		global.GVA_LOG.Error("获取未巡检任务数量失败!请检查输入!")
+		response.FailWithMessage("获取未巡检任务数量失败!请检查输入!", c)
+		return
+	}
+
+	if err, total := taskService.GetInspectorTodayNotInspectTaskCount(task); err != nil {
+		global.GVA_LOG.Error("获取未巡检任务数量失败!", zap.Error(err))
+		response.FailWithMessage("获取未巡检任务数量失败", c)
+	} else {
+		response.OkWithDetailed(total, "获取未巡检任务数量成功", c)
+	}
+}

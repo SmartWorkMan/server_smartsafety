@@ -29,6 +29,7 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouterWithoutRecord.POST("getAssignTaskList", taskApi.GetAssignTaskList)  // 获取下派任务列表
 		taskRouterWithoutRecord.POST("getApprovalTaskList", taskApi.GetApprovalTaskList)  // 获取审批任务列表
 		taskRouterWithoutRecord.POST("getTaskHistory", taskApi.GetTaskHistory)  // 巡检管理员获取巡检任务历史记录
+		taskRouterWithoutRecord.POST("getTimeOutTaskHistory", taskApi.GetTimeOutTaskHistory)
 
 		taskRouterWithoutRecord.PUT( "app/reportTaskResult", taskApi.ReportTaskResult)    // 巡检员提交巡检结果
 		taskRouterWithoutRecord.POST("app/getTaskHistoryByItem", taskApi.GetTaskHistoryByItem)  // 巡检员获取巡检任务历史记录
@@ -41,6 +42,10 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouterWithoutRecord.POST("app/getApprovalTaskList", taskApi.GetApprovalTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getAssignTaskList", taskApi.GetAssignTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 
+		taskRouterWithoutRecord.POST("app/getInspectorTimeOutTaskCount", taskApi.GetInspectorTimeOutTaskCount)
+		taskRouterWithoutRecord.POST("app/getInspectorTodayInspectTaskCount", taskApi.GetInspectorTodayInspectTaskCount)
+		taskRouterWithoutRecord.POST("app/getInspectorNotFixedTaskCount", taskApi.GetInspectorNotFixedTaskCount)
+		taskRouterWithoutRecord.POST("app/getInspectorTodayNotInspectTaskCount", taskApi.GetInspectorTodayNotInspectTaskCount)
 
 		taskRouterWithoutRecord.POST("temp/createTask", taskApi.TempCreateTask)   // 临时创建巡检任务(此API只为测试使用,上线后删除)
 	}

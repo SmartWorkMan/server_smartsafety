@@ -13,7 +13,7 @@ type Item struct {
       ItemName  string `json:"itemName" form:"itemName" gorm:"column:item_name;comment:巡检事项名称;size:191;"`
       InspectorUsername  string `json:"inspectorUsername" form:"inspectorUsername" gorm:"column:inspector_username;comment:巡检员用户名;size:191;"`
       InspectorName  string `json:"inspectorName" form:"inspectorName" gorm:"column:inspector_name;comment:巡检员姓名;size:191;"`
-      Period  string `json:"period" form:"period" gorm:"column:period;comment:巡检周期,day,week,month;size:191;"`
+      Period  string `json:"period" form:"period" gorm:"column:period;comment:巡检周期,重复日,重复周,重复月,重复季度,重复半年;size:191;"`
       StartTime  string `json:"startTime" form:"startTime" gorm:"column:start_time;comment:开始时间;"`
       EndTime  string `json:"endTime" form:"endTime" gorm:"column:end_time;comment:结束时间;"`
       FactoryName  string `json:"factoryName" form:"factoryName" gorm:"column:factory_name;comment:工厂名称;size:191;"`

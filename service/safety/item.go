@@ -76,18 +76,63 @@ func (itemService *ItemService)GetItem(id uint) (err error, item safety.Item) {
 
 // GetItemInfoList 分页获取Item记录
 // Author [piexlmax](https://github.com/piexlmax)
-func (itemService *ItemService)GetItemInfoList(info safetyReq.ItemSearch) (err error, list interface{}, total int64) {
+func (itemService *ItemService)GetItemInfoList(info safetyReq.ItemSearch, enableExist bool) (err error, list interface{}, total int64) {
 	limit := info.PageSize
 	offset := info.PageSize * (info.Page - 1)
     // 创建db
 	db := global.GVA_DB.Model(&safety.Item{})
     var items []safety.Item
-    // 如果有条件搜索 下方会自动创建搜索语句
-	err = db.Where("factory_name = ? ", info.FactoryName).Count(&total).Error
-	if err!=nil {
-    	return
-    }
-	err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? ", info.FactoryName).Error
+
+	if info.Period == "" && enableExist == false && info.ItemName == "" {
+		err = db.Where("factory_name = ? ", info.FactoryName).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? ", info.FactoryName).Error
+	} else if info.Period != "" && enableExist == false && info.ItemName == "" {
+		err = db.Where("factory_name = ? AND period = ?", info.FactoryName, info.Period).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND period = ?", info.FactoryName, info.Period).Error
+	} else if info.Period == "" && enableExist == true && info.ItemName == "" {
+		err = db.Where("factory_name = ? AND enable = ?", info.FactoryName, info.Enable).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND enable = ?", info.FactoryName, info.Enable).Error
+	} else if info.Period == "" && enableExist == false && info.ItemName != "" {
+		err = db.Where("factory_name = ? AND item_name like ?", info.FactoryName, "%"+info.ItemName+"%").Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND item_name like ?", info.FactoryName, "%"+info.ItemName+"%").Error
+	} else if info.Period != "" && enableExist == true && info.ItemName == "" {
+		err = db.Where("factory_name = ? AND period = ? AND enable = ?", info.FactoryName, info.Period, info.Enable).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND period = ? AND enable = ?", info.FactoryName, info.Period, info.Enable).Error
+	} else if info.Period == "" && enableExist == true && info.ItemName != "" {
+		err = db.Where("factory_name = ? AND enable = ? AND item_name like ?", info.FactoryName, info.Enable, "%"+info.ItemName+"%").Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND enable = ? AND item_name like ?", info.FactoryName, info.Enable, "%"+info.ItemName+"%").Error
+	} else if info.Period != "" && enableExist == false && info.ItemName != "" {
+		err = db.Where("factory_name = ? AND period = ? AND item_name like ?", info.FactoryName, info.Period, "%"+info.ItemName+"%").Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND period = ? AND item_name like ?", info.FactoryName, info.Period, "%"+info.ItemName+"%").Error
+	} else if info.Period != "" && enableExist == true && info.ItemName != "" {
+		err = db.Where("factory_name = ? AND period = ? AND enable = ? AND item_name like ?", info.FactoryName, info.Period, info.Enable, "%"+info.ItemName+"%").Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? AND period = ? AND enable = ? AND item_name like ?", info.FactoryName, info.Period, info.Enable, "%"+info.ItemName+"%").Error
+	}
+
 	return err, items, total
 }
 
@@ -103,21 +148,21 @@ func (itemService *ItemService)GetAllValidItemList(period string) (error, []safe
 
 // GetItemInfoListByArea 分页获取Item记录
 // Author [piexlmax](https://github.com/piexlmax)
-func (itemService *ItemService)GetItemInfoListByLeafAreaId(info safetyReq.ItemSearch, inIdList string) (err error, list interface{}, total int64) {
+func (itemService *ItemService)GetItemInfoListByLeafAreaId(info safetyReq.ItemSearch, inIdList []uint) (err error, list interface{}, total int64) {
 	limit := info.PageSize
 	offset := info.PageSize * (info.Page - 1)
 	// 创建db
 	db := global.GVA_DB.Model(&safety.Item{})
 	var items []safety.Item
-	// 如果有条件搜索 下方会自动创建搜索语句
+
 	err = db.Where("factory_name = ? And area_id in (?)", info.FactoryName, inIdList).Count(&total).Error
 	if err!=nil {
 		return
 	}
+
 	err = db.Limit(limit).Offset(offset).Find(&items, "factory_name = ? And area_id in (?)", info.FactoryName, inIdList).Error
 	return err, items, total
 }
-
 
 func (itemService *ItemService) CreateNextPeriodDate(inputDate safety.ItemNextPeriodDate) (err error) {
 	var nextDate safety.ItemNextPeriodDate
