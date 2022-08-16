@@ -31,3 +31,8 @@ type TopItem struct {
 	ItemName  string `json:"itemName" form:"itemName" gorm:"column:item_name;comment:巡检事项名称;size:191;"`
 	Number int `json:"num" gorm:"column:num;"`
 }
+
+type TaskApprove struct{
+	safety.Task
+	PhoneNumberList  []string `json:"phoneNumberList"`
+}

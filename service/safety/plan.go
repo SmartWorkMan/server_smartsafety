@@ -32,6 +32,11 @@ func (planService *PlanService)DeletePlanByIds(ids request.IdsReq) (err error) {
 	return err
 }
 
+func (planService *PlanService)DeletePlanByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Plan{},"factory_name = ?", factoryName).Error
+	return err
+}
+
 // UpdatePlan 更新Plan记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (planService *PlanService)UpdatePlan(plan safety.Plan) (err error) {

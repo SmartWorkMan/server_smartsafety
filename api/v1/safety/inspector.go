@@ -12,6 +12,7 @@ import (
 	"github.com/flipped-aurora/gin-vue-admin/server/utils"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"strings"
 )
 
 type InspectorApi struct {
@@ -35,7 +36,7 @@ func (inspectorApi *InspectorApi) CreateInspector(c *gin.Context) {
 		return
 	}
 
-	var inspector safety.Inspector
+	var inspector safetyReq.InspectorCreate
 	_ = c.ShouldBindJSON(&inspector)
 	inspector.FactoryName = curUser.FactoryName
 
@@ -45,12 +46,44 @@ func (inspectorApi *InspectorApi) CreateInspector(c *gin.Context) {
 		return
 	}
 
-	if err := inspectorService.CreateInspector(inspector); err != nil {
+	if err := inspectorService.CreateInspector(inspectorCreate2Inspector(inspector)); err != nil {
         global.GVA_LOG.Error("创建巡检员失败!", zap.Error(err))
 		response.FailWithMessage("创建巡检员失败", c)
 	} else {
 		response.OkWithMessage("创建巡检员成功", c)
 	}
+}
+
+func inspectorCreate2Inspector(inspectorCreate safetyReq.InspectorCreate) safety.Inspector {
+	var inspector safety.Inspector
+	inspector = inspectorCreate.Inspector
+	if len(inspectorCreate.CertList) == 0 {
+		inspector.Certification = ""
+	} else {
+		inspector.Certification = ""
+		for i := 0; i < len(inspectorCreate.CertList); i++ {
+			if i != len(inspectorCreate.CertList) - 1 {
+				inspector.Certification += inspectorCreate.CertList[i] + ","
+			} else {
+				inspector.Certification += inspectorCreate.CertList[i]
+			}
+		}
+	}
+
+	return inspector
+}
+
+func inspectorList2InspectorCreateList (inspectorList []safety.Inspector) []safetyReq.InspectorCreate {
+	var inspectorCreateList []safetyReq.InspectorCreate
+	for _, inspector := range inspectorList {
+		var inspectorCreate safetyReq.InspectorCreate
+		inspectorCreate.Inspector = inspector
+		inspectorCreate.Certification = ""
+		certList := strings.Split(inspector.Certification, ",")
+		inspectorCreate.CertList = certList
+		inspectorCreateList = append(inspectorCreateList, inspectorCreate)
+	}
+	return inspectorCreateList
 }
 
 // DeleteInspector 删除Inspector
@@ -119,11 +152,11 @@ func (inspectorApi *InspectorApi) UpdateInspector(c *gin.Context) {
 		return
 	}
 
-	var inspector safety.Inspector
+	var inspector safetyReq.InspectorCreate
 	_ = c.ShouldBindJSON(&inspector)
 	inspector.FactoryName = curUser.FactoryName
 
-	if err := inspectorService.UpdateInspector(inspector); err != nil {
+	if err := inspectorService.UpdateInspector(inspectorCreate2Inspector(inspector)); err != nil {
         global.GVA_LOG.Error("更新失败!", zap.Error(err))
 		response.FailWithMessage("更新失败", c)
 	} else {
@@ -198,7 +231,7 @@ func (inspectorApi *InspectorApi) GetInspectorList(c *gin.Context) {
         response.FailWithMessage("获取巡检员列表失败", c)
     } else {
         response.OkWithDetailed(response.PageResult{
-            List:     list,
+            List:     inspectorList2InspectorCreateList(list.([]safety.Inspector)),
             Total:    total,
             Page:     pageInfo.Page,
             PageSize: pageInfo.PageSize,

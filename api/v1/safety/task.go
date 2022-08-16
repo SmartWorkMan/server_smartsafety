@@ -13,8 +13,10 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/json-iterator/go"
 	"go.uber.org/zap"
+	"net/http"
 	"strings"
 	"time"
+	"bytes"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -173,11 +175,27 @@ func (taskApi *TaskApi) ReportTaskResult(c *gin.Context) {
 		response.FailWithMessage("巡检员提交巡检任务失败!请输入正确任务ID", c)
 		return
 	}
-	if taskReport.TaskStatusStr == "" {
+	if taskReport.TaskStatusStr == "" || taskReport.TaskStatus == commval.TaskStatusNotStart {
 		global.GVA_LOG.Error("巡检员提交巡检任务失败!请输入正确巡检任务状态!")
 		response.FailWithMessage("巡检员提交巡检任务失败!请输入正确巡检任务状态!", c)
 		return
 	}
+
+	_, taskInfo := taskService.GetTask(taskReport.ID)
+	if !strings.Contains(taskInfo.InspectorUsername, taskReport.InspectorUsername) {
+		global.GVA_LOG.Error("巡检员提交巡检任务失败!此任务已被其他巡检员处理!")
+		response.FailWithMessage("巡检员提交巡检任务失败!此任务已被其他巡检员处理!", c)
+		return
+	}
+
+	err, inspector := inspectorService.GetInspectorByUserName(taskReport.InspectorUsername)
+	if err != nil {
+		global.GVA_LOG.Error("巡检员提交巡检任务失败!请输入正确巡检任务状态!")
+		response.FailWithMessage("巡检员提交巡检任务失败!请输入正确巡检任务状态!", c)
+		return
+	}
+	global.GVA_LOG.Info(fmt.Sprintf("inspector:%+v", inspector))
+	taskReport.InspectorName = inspector.Name
 
 	global.GVA_LOG.Info(fmt.Sprintf("taskReport:%+v", taskReport))
 	global.GVA_LOG.Info(fmt.Sprintf("task:%+v", taskReport2Task(taskReport)))
@@ -185,7 +203,70 @@ func (taskApi *TaskApi) ReportTaskResult(c *gin.Context) {
 	if err := taskService.ReportTaskResult(taskReport2Task(taskReport)); err != nil {
         global.GVA_LOG.Error("巡检员提交巡检任务失败!", zap.Error(err))
 		response.FailWithMessage("巡检员提交巡检任务失败", c)
+        return
 	} else {
+		if taskReport.TaskStatus == commval.TaskStatusReportIssue ||
+			taskReport.TaskStatus == commval.TaskStatusApproval ||
+			taskReport.TaskStatus == commval.TaskStatusFireAlarm {
+			_, taskInfo := taskService.GetTask(taskReport.ID)
+			//发短信给维保管理员
+			sms := make(map[string]interface{})
+			if taskReport.TaskStatus == commval.TaskStatusReportIssue {
+				sms["reason"] = "上报维修"
+			} else if taskReport.TaskStatus == commval.TaskStatusApproval {
+				sms["reason"] = "工单审批"
+			} else if taskReport.TaskStatus == commval.TaskStatusFireAlarm {
+				sms["reason"] = "火警处置"
+			}
+			sms["areaInfo"] = taskInfo.AreaName
+			sms["deviceInfo"] = taskInfo.ItemName + " " + taskInfo.ItemSn
+			sms["people"] = taskInfo.InspectorName
+			err, users := userService.GetMaintainUsers(taskInfo.FactoryName, commval.MaintainUserAuthorityId)
+			if err != nil {
+				global.GVA_LOG.Error("发送短信给维保管理员失败!", zap.Error(err))
+			} else {
+				var phoneList []string
+				for _, user := range users {
+					phoneList = append(phoneList, user.Phone)
+				}
+				sms["phonelist"] = phoneList
+				err = sendSMS(sms)
+				if err != nil {
+					global.GVA_LOG.Error("发送短信给维保管理员失败!", zap.Error(err))
+				}
+			}
+
+			if taskReport.TaskStatus == commval.TaskStatusFireAlarm {
+				//发短信给所有当班巡检员
+				var phoneList []string
+				var clock safety.Clock
+				clock.FactoryName = taskInfo.FactoryName
+				err, clockList := clockService.GetOnDutyInspectors(clock)
+				if err != nil {
+					global.GVA_LOG.Error("发送短信给巡检员失败!", zap.Error(err))
+					response.FailWithMessage("发送短信给巡检员失败!", c)
+					return
+				}
+				for _, clockInfo := range clockList {
+					err, inspector := inspectorService.GetInspectorByUserName(clockInfo.InspectorUsername)
+					if err != nil {
+						global.GVA_LOG.Error("发送短信给巡检员失败!", zap.Error(err))
+						continue
+					}
+					phoneList = append(phoneList, inspector.PhoneNumber)
+				}
+				if len(phoneList) > 0 {
+					sms["phonelist"] = phoneList
+					err = sendSMS(sms)
+					if err != nil {
+						global.GVA_LOG.Error("发送短信给巡检员失败!", zap.Error(err))
+						response.FailWithMessage("发送短信给巡检员失败!", c)
+						return
+					}
+				}
+			}
+		}
+
 		response.OkWithMessage("巡检员提交巡检任务成功", c)
 	}
 }
@@ -203,23 +284,68 @@ func (taskApi *TaskApi) AssignTask(c *gin.Context) {
 		global.GVA_LOG.Error("下派任务失败!", zap.Error(err))
 		response.FailWithMessage("下派任务失败", c)
 	} else {
+		//发短信
+		_, taskInfo := taskService.GetTask(task.ID)
+		err, users := userService.GetMaintainUsers(taskInfo.FactoryName, commval.MaintainUserAuthorityId)
+		if err != nil {
+			global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+			response.FailWithMessage("发送短信失败!", c)
+			return
+		}
+		_, inspector := inspectorService.GetInspectorByUserName(task.InspectorUsername)
+		sms := make(map[string]interface{})
+		sms["reason"] = "任务下派"
+		sms["areaInfo"] = taskInfo.AreaName
+		sms["deviceInfo"] = taskInfo.ItemName + " " + taskInfo.ItemSn
+		sms["people"] = users[0].NickName
+		var phoneList []string
+		phoneList = append(phoneList, inspector.PhoneNumber)
+		sms["phonelist"] = phoneList
+		err = sendSMS(sms)
+		if err != nil {
+			global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+			response.FailWithMessage("发送短信失败!", c)
+			return
+		}
 		response.OkWithMessage("下派任务成功", c)
 	}
 }
 
 // @Router /task/approveTask [put]
 func (taskApi *TaskApi) ApproveTask(c *gin.Context) {
-	var task safety.Task
+	var task safetyReq.TaskApprove
 	_ = c.ShouldBindJSON(&task)
 	if task.ID == 0 {
 		global.GVA_LOG.Error("审批任务失败!请检查请求信息!")
 		response.FailWithMessage("审批任务失败!请检查请求信息!", c)
 		return
 	}
-	if err := taskService.ApproveTask(task); err != nil {
+	if err := taskService.ApproveTask(task.Task); err != nil {
 		global.GVA_LOG.Error("审批任务失败!", zap.Error(err))
 		response.FailWithMessage("审批任务失败", c)
 	} else {
+		//火警处置确认发短信
+		if len(task.PhoneNumberList) > 0 {
+			_, taskInfo := taskService.GetTask(task.ID)
+			err, users := userService.GetMaintainUsers(taskInfo.FactoryName, commval.MaintainUserAuthorityId)
+			if err != nil {
+				global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+				response.FailWithMessage("发送短信失败!", c)
+				return
+			}
+			sms := make(map[string]interface{})
+			sms["reason"] = "火警处置确认"
+			sms["areaInfo"] = taskInfo.AreaName
+			sms["deviceInfo"] = taskInfo.ItemName + " " + taskInfo.ItemSn
+			sms["people"] = users[0].NickName
+			sms["phonelist"] = task.PhoneNumberList
+			err = sendSMS(sms)
+			if err != nil {
+				global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+				response.FailWithMessage("发送短信失败!", c)
+				return
+			}
+		}
 		response.OkWithMessage("审批任务成功", c)
 	}
 }
@@ -238,6 +364,29 @@ func (taskApi *TaskApi) RejectTask(c *gin.Context) {
 		global.GVA_LOG.Error("拒绝审批任务失败!", zap.Error(err))
 		response.FailWithMessage("拒绝审批任务失败", c)
 	} else {
+		//发送短信
+		_, taskInfo := taskService.GetTask(task.ID)
+		err, users := userService.GetMaintainUsers(taskInfo.FactoryName, commval.MaintainUserAuthorityId)
+		if err != nil {
+			global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+			response.FailWithMessage("发送短信失败!", c)
+			return
+		}
+		_, inspector := inspectorService.GetInspectorByUserName(taskInfo.InspectorUsername)
+		sms := make(map[string]interface{})
+		sms["reason"] = "任务驳回"
+		sms["areaInfo"] = taskInfo.AreaName
+		sms["deviceInfo"] = taskInfo.ItemName + " " + taskInfo.ItemSn
+		sms["people"] = users[0].NickName
+		var phoneList []string
+		phoneList = append(phoneList, inspector.PhoneNumber)
+		sms["phonelist"] = phoneList
+		err = sendSMS(sms)
+		if err != nil {
+			global.GVA_LOG.Error("发送短信失败!", zap.Error(err))
+			response.FailWithMessage("发送短信失败!", c)
+			return
+		}
 		response.OkWithMessage("拒绝审批任务成功", c)
 	}
 }
@@ -321,6 +470,22 @@ func (taskApi *TaskApi) GetAssignTaskList(c *gin.Context) {
 // @Router /task/getApprovalTaskList [post]
 func (taskApi *TaskApi) GetApprovalTaskList(c *gin.Context) {
 	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusApproval)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
+// @Router /task/getFireAlarmTaskList [post]
+func (taskApi *TaskApi) GetFireAlarmTaskList(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusFireAlarm)
 	if err != nil {
 		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
 		response.FailWithMessage("获取任务列表失败", c)
@@ -684,6 +849,23 @@ func (taskApi *TaskApi) GetAssignTaskListForAppAdmin(c *gin.Context) {
 	}
 }
 
+// @Router /task/app/getFireAlarmTaskListForAppAdmin [post]
+// factoryName in body
+func (taskApi *TaskApi) GetFireAlarmTaskListForAppAdmin(c *gin.Context) {
+	err, list, total, pageInfo := taskApi.getTaskList(c, commval.TaskStatusFireAlarm)
+	if err != nil {
+		global.GVA_LOG.Error("获取任务列表失败!", zap.Error(err))
+		response.FailWithMessage("获取任务列表失败", c)
+	} else {
+		response.OkWithDetailed(response.PageResult{
+			List:     list,
+			Total:    total,
+			Page:     pageInfo.Page,
+			PageSize: pageInfo.PageSize,
+		}, "获取任务列表成功", c)
+	}
+}
+
 // @Router /screen/getNormalTaskCount [post]
 func (taskApi *TaskApi) GetNormalTaskCount(c *gin.Context) {
 	var task safety.Task
@@ -931,5 +1113,31 @@ func (taskApi *TaskApi) GetInspectorTodayNotInspectTaskCount(c *gin.Context) {
 		response.FailWithMessage("获取未巡检任务数量失败", c)
 	} else {
 		response.OkWithDetailed(total, "获取未巡检任务数量成功", c)
+	}
+}
+
+func sendSMS(sms map[string]interface{}) error {
+	url := "http://xulaogemeishi.top:9244/api/smsSend/batchSend"
+	//sms["phonelist"] = []string{"13770947479"}
+	data, err := json.Marshal(sms)
+	if err != nil {
+		global.GVA_LOG.Error(fmt.Sprintf("send sms failed, sms: %v, error: %s", sms, err.Error()))
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req.Header.Set("Content-type", "application/json")
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		global.GVA_LOG.Error(fmt.Sprintf("send sms failed, sms: %s, error: %s", data, err.Error()))
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return errors.New(fmt.Sprintf("send sms faild, return %d", res.StatusCode))
+	} else {
+		return nil
 	}
 }

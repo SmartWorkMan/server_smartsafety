@@ -14,3 +14,8 @@ type InspectorLogin struct{
 	Role  int `json:"role"` //1: inspector 2:maintain user 3: factory user
 	FactoryName  string `json:"factoryName"`
 }
+
+type InspectorCreate struct{
+	safety.Inspector
+	CertList  []string `json:"certList"`
+}

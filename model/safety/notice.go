@@ -13,7 +13,9 @@ type Notice struct {
       OrgName  string `json:"orgName" form:"orgName" gorm:"column:org_name;comment:单位名称;size:191;"`
       NoticeTime  string `json:"noticeTime" form:"noticeTime" gorm:"column:notice_time;comment:发布时间;size:191;"`
       Topic  string `json:"topic" form:"topic" gorm:"column:topic;comment:通知标题;size:1000;"`
-      Type  int `json:"type" form:"type" gorm:"column:type;comment:通知类型,1:消防单位通知, 2:工厂通知;size:10;"`
+      Type  int `json:"type" form:"type" gorm:"column:type;comment:通知类型,1:超级管理员通知, 2:工厂管理员通知;size:10;"`
+      Attachment  string `json:"attachment" form:"attachment" gorm:"column:attachment;comment:附件地址;size:1000;"`
+      SuperUserType  int `json:"superUserType" form:"superUserType" gorm:"column:super_user_type;comment:超级管理员通知类型,1:平时通知, 2:维保计划通知;size:10;"`
 }
 
 

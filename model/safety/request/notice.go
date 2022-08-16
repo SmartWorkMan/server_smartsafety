@@ -12,7 +12,12 @@ type NoticeSearch struct{
 }
 
 type NoticeInfoAndRead struct{
-	safety.Notice
+	NoticeCreate
 	Username  string `json:"username" form:"username" gorm:"column:username;comment:登录用户名;size:191;"`
 	IsRead  uint `json:"IsRead"`
+}
+
+type NoticeCreate struct{
+	safety.Notice
+	AttachmentList  []string `json:"attachmentList"`
 }

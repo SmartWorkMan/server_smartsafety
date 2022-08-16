@@ -116,7 +116,7 @@ func (tecentApi *TecentApi) GetTecent(c *gin.Context) {
 	mapMap := make(map[string]map[string]string)
 	mapMap["tencent_map"] = map[string]string{"key":"6Z7BZ-6LP64-I46U2-DD7QB-ILYY7-YOBVF"}
 	orcMap := make(map[string]map[string]string)
-	orcMap["ocr_map"] = map[string]string{"apiKey ":"Ose3OSge4K0TmYv5TLkWffu4","secretKey":"waZh6L8BGubAC2PYknpYvFnDpdNEmdOy"}
+	orcMap["ocr_map"] = map[string]string{"apiKey":"Ose3OSge4K0TmYv5TLkWffu4","secretKey":"waZh6L8BGubAC2PYknpYvFnDpdNEmdOy"}
 
 	if tencent.TencentType == "cos" {
         response.OkWithDetailed(cosMap, "获取成功", c)

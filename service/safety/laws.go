@@ -78,7 +78,7 @@ func (lawsService *LawsService)GetLawsInfoList(info safetyReq.LawsSearch) (err e
 			Desc:   descSort,
 		}).Offset(offset).Find(&lawss,"law_type = ? AND law_status = ? AND law_name like ?", info.LawType, info.LawStatus, "%"+info.LawName+"%").Error
 	} else if info.LawStatus == "" && info.LawName != "" {
-		err = db.Where("law_type = ? AND law_name like ?", "%"+info.LawName+"%").Count(&total).Error
+		err = db.Where("law_type = ? AND law_name like ?", info.LawType, "%"+info.LawName+"%").Count(&total).Error
 		if err!=nil {
 			return
 		}
@@ -112,7 +112,7 @@ func (lawsService *LawsService)GetLawsInfoList(info safetyReq.LawsSearch) (err e
 	return err, lawss, total
 }
 
-func (lawsService *LawsService)GetLawsListForAdmin(info safetyReq.LawsSearch) (err error, list interface{}, total int64) {
+func (lawsService *LawsService)GetLawsListForApp(info safetyReq.LawsSearch) (err error, list interface{}, total int64) {
 	limit := info.PageSize
 	offset := info.PageSize * (info.Page - 1)
 	// 创建db

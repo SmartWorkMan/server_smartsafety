@@ -53,6 +53,11 @@ func (trainingService *TrainingService)DeleteTrainingByIds(ids request.IdsReq) (
 	return err
 }
 
+func (trainingService *TrainingService)DeleteTrainingByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Training{},"factory_name = ?", factoryName).Error
+	return err
+}
+
 // UpdateTraining 更新Training记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (trainingService *TrainingService)UpdateTraining(training safety.Training) (err error) {

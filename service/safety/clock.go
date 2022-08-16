@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"errors"
 	"gorm.io/gorm/clause"
+	"time"
 )
 
 type ClockService struct {
@@ -64,6 +65,11 @@ func (clockService *ClockService)DeleteClockByIds(ids request.IdsReq) (err error
 	return err
 }
 
+func (clockService *ClockService)DeleteClockByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Clock{},"factory_name = ?",factoryName).Error
+	return err
+}
+
 // UpdateClock 更新Clock记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (clockService *ClockService)UpdateClock(clock safety.Clock) (err error) {
@@ -106,6 +112,15 @@ func (clockService *ClockService)GetOnDutyNum(clock safety.Clock) (err error, to
 	}
 
 	return err, total
+}
+
+func (clockService *ClockService)GetOnDutyInspectors(clock safety.Clock) (error, []safety.Clock) {
+	curDate := time.Now().Format("2006-01-02")
+	db := global.GVA_DB.Model(&safety.Clock{})
+	var clocks []safety.Clock
+	err := db.Where("factory_name = ? AND clock_date = ? AND LENGTH(trim(clock_out_time)) < 1 ", clock.FactoryName, curDate).Find(&clocks).Error
+
+	return err, clocks
 }
 
 func (clockService *ClockService)GetHistoryClockList(info safetyReq.ClockSearch) (err error, list interface{}, total int64) {

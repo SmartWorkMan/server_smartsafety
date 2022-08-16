@@ -38,6 +38,12 @@ func (basicInfoService *BasicInfoService)DeleteBasicInfoByIds(ids request.IdsReq
 	return err
 }
 
+func (basicInfoService *BasicInfoService)DeleteBasicInfoByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.BasicInfo{},"factory_name = ?",factoryName).Error
+	return err
+}
+
+
 // UpdateBasicInfo 更新BasicInfo记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (basicInfoService *BasicInfoService)UpdateBasicInfo(basicInfo safety.BasicInfo) (err error) {

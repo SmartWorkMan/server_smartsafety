@@ -25,6 +25,13 @@ func (userService *UserService) Register(u system.SysUser) (err error, userInter
 	if !errors.Is(global.GVA_DB.Where("username = ?", u.Username).First(&user).Error, gorm.ErrRecordNotFound) { // 判断用户名是否注册
 		return errors.New("用户名已注册"), userInter
 	}
+	if u.FactoryName != "" &&
+		(u.AuthorityId == commval.MaintainUserAuthorityId ||
+			u.AuthorityId == commval.FactoryUserAuthorityId) {
+		if !errors.Is(global.GVA_DB.Where("factory_name = ? AND authority_id = ?", u.FactoryName, u.AuthorityId).First(&user).Error, gorm.ErrRecordNotFound) { // 判断用户名是否注册
+			return errors.New("每个工厂只能注册一个维保管理员和一个工厂管理员"), userInter
+		}
+	}
 	// 否则 附加uuid 密码md5简单加密 注册
 	u.Password = utils.MD5V([]byte(u.Password))
 	u.UUID = uuid.NewV4()
@@ -258,5 +265,16 @@ func (userService *UserService) AppLogin(username string, passwd string) (error,
 	passwd = utils.MD5V([]byte(passwd))
 	err := global.GVA_DB.Where("username = ? AND password = ?", username, passwd).First(&user).Error
 	return err, user
+}
+
+func (userService *UserService) GetMaintainUsers(factoryName string, authorityId string) (error, []system.SysUser) {
+	var users []system.SysUser
+	db := global.GVA_DB.Model(&system.SysUser{})
+	err := db.Find(&users,"factory_name = ? AND authority_id = ?", factoryName, authorityId).Error
+	if err != nil {
+		return err, nil
+	} else {
+		return nil, users
+	}
 }
 

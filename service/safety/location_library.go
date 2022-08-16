@@ -38,6 +38,11 @@ func (locationLibraryService *LocationLibraryService)DeleteLocationLibraryByIds(
 	return err
 }
 
+func (locationLibraryService *LocationLibraryService)DeleteLocationLibraryByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.LocationLibrary{},"factory_name = ?",factoryName).Error
+	return err
+}
+
 // UpdateLocationLibrary 更新LocationLibrary记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (locationLibraryService *LocationLibraryService)UpdateLocationLibrary(locationLibrary safety.LocationLibrary) (err error) {

@@ -28,6 +28,7 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouterWithoutRecord.POST("getFaultTaskList", taskApi.GetFaultTaskList)  // 获取故障任务列表
 		taskRouterWithoutRecord.POST("getAssignTaskList", taskApi.GetAssignTaskList)  // 获取下派任务列表
 		taskRouterWithoutRecord.POST("getApprovalTaskList", taskApi.GetApprovalTaskList)  // 获取审批任务列表
+		taskRouterWithoutRecord.POST("getFireAlarmTaskList", taskApi.GetFireAlarmTaskList)  // 获取火警处置任务列表
 		taskRouterWithoutRecord.POST("getTaskHistory", taskApi.GetTaskHistory)  // 巡检管理员获取巡检任务历史记录
 		taskRouterWithoutRecord.POST("getTimeOutTaskHistory", taskApi.GetTimeOutTaskHistory)
 
@@ -41,6 +42,7 @@ func (s *TaskRouter) InitTaskRouter(Router *gin.RouterGroup) {
 		taskRouterWithoutRecord.POST("app/getFaultTaskList", taskApi.GetFaultTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getApprovalTaskList", taskApi.GetApprovalTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
 		taskRouterWithoutRecord.POST("app/getAssignTaskList", taskApi.GetAssignTaskListForAppAdmin)  // 巡检员获取指定区域巡检任务
+		taskRouterWithoutRecord.POST("app/getFireAlarmTaskListForAppAdmin", taskApi.GetFireAlarmTaskListForAppAdmin)
 
 		taskRouterWithoutRecord.POST("app/getInspectorTimeOutTaskCount", taskApi.GetInspectorTimeOutTaskCount)
 		taskRouterWithoutRecord.POST("app/getInspectorTodayInspectTaskCount", taskApi.GetInspectorTodayInspectTaskCount)

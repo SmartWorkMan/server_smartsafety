@@ -39,6 +39,11 @@ func (inspectorService *InspectorService)DeleteInspectorByIds(ids request.IdsReq
 	return err
 }
 
+func (inspectorService *InspectorService)DeleteInspectorByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Inspector{},"factory_name = ?", factoryName).Error
+	return err
+}
+
 // UpdateInspector 更新Inspector记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (inspectorService *InspectorService)UpdateInspector(inspector safety.Inspector) (err error) {

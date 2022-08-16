@@ -10,8 +10,18 @@ type ItemSearch struct{
     request.PageInfo
 }
 
-type ItemUpdateAndDelete struct{
+type ItemInspector struct {
+	InspectorUsername  string `json:"inspectorUsername"`
+	InspectorName  string `json:"inspectorName"`
+}
+
+type ItemCreate struct{
 	safety.Item
+	InspectorList []ItemInspector `json:"inspectorList"`
+}
+
+type ItemUpdateAndDelete struct{
+	ItemCreate
 	Force int `json:"force"`
 }
 

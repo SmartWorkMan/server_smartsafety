@@ -162,12 +162,12 @@ func (lawsApi *LawsApi) GetLawsList(c *gin.Context) {
     }
 }
 
-// @Router /laws/getLawsListForAdmin [get]
-func (lawsApi *LawsApi) GetLawsListForAdmin(c *gin.Context) {
+// @Router /laws/app/getLawsListForApp [get]
+func (lawsApi *LawsApi) GetLawsListForApp(c *gin.Context) {
 	var pageInfo safetyReq.LawsSearch
 	_ = c.ShouldBindJSON(&pageInfo)
 
-	if err, list, total := lawsService.GetLawsListForAdmin(pageInfo); err != nil {
+	if err, list, total := lawsService.GetLawsListForApp(pageInfo); err != nil {
 		global.GVA_LOG.Error("获取法律法规失败!", zap.Error(err))
 		response.FailWithMessage("获取法律法规失败", c)
 	} else {

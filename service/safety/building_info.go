@@ -38,6 +38,11 @@ func (buildingInfoService *BuildingInfoService)DeleteBuildingInfoByIds(ids reque
 	return err
 }
 
+func (buildingInfoService *BuildingInfoService)DeleteBuildingInfoByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.BuildingInfo{},"factory_name = ?",factoryName).Error
+	return err
+}
+
 // UpdateBuildingInfo 更新BuildingInfo记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (buildingInfoService *BuildingInfoService)UpdateBuildingInfo(buildingInfo safety.BuildingInfo) (err error) {

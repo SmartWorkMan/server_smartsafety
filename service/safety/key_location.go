@@ -37,6 +37,11 @@ func (keyLocationService *KeyLocationService)DeleteKeyLocationByIds(ids request.
 	return err
 }
 
+func (keyLocationService *KeyLocationService)DeleteKeyLocationByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.KeyLocation{},"factory_name = ?",factoryName).Error
+	return err
+}
+
 // UpdateKeyLocation 更新KeyLocation记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (keyLocationService *KeyLocationService)UpdateKeyLocation(keyLocation safety.KeyLocation) (err error) {

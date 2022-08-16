@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"go.uber.org/zap"
+	"strings"
 	"time"
 )
 
@@ -35,10 +36,9 @@ func (itemApi *ItemApi) CreateItem(c *gin.Context) {
 		return
 	}
 
-	var item safety.Item
+	var item safetyReq.ItemCreate
 	_ = c.ShouldBindJSON(&item)
 	item.FactoryName = curUser.FactoryName
-	global.GVA_LOG.Info(fmt.Sprintf("item:%+v", item))
 
 	if item.Period != commval.ItemPeriodDay &&
 		item.Period != commval.ItemPeriodWeek &&
@@ -66,7 +66,7 @@ func (itemApi *ItemApi) CreateItem(c *gin.Context) {
 	}
 	item.AreaName = areaPath
 
-	if err = itemService.CreateItem(item); err != nil {
+	if err = itemService.CreateItem(itemCreate2Item(item)); err != nil {
         global.GVA_LOG.Error("创建巡检事项失败!", zap.Error(err))
 		response.FailWithMessage("创建巡检事项失败", c)
 	} else {
@@ -76,6 +76,47 @@ func (itemApi *ItemApi) CreateItem(c *gin.Context) {
 		}
 		response.OkWithMessage("创建巡检事项成功", c)
 	}
+}
+
+func itemCreate2Item(itemCreate safetyReq.ItemCreate) safety.Item {
+	if len(itemCreate.InspectorList) == 0 {
+		return itemCreate.Item
+	}
+	var item safety.Item
+	item = itemCreate.Item
+	item.InspectorUsername = ""
+	item.InspectorName = ""
+	for i := 0; i < len(itemCreate.InspectorList); i++ {
+		if i != len(itemCreate.InspectorList) - 1 {
+			item.InspectorUsername += itemCreate.InspectorList[i].InspectorUsername + ","
+			item.InspectorName += itemCreate.InspectorList[i].InspectorName + ","
+		} else {
+			item.InspectorUsername += itemCreate.InspectorList[i].InspectorUsername
+			item.InspectorName += itemCreate.InspectorList[i].InspectorName
+		}
+	}
+
+	return item
+}
+
+func itemList2ItemCreateList (itemList []safety.Item) []safetyReq.ItemCreate {
+	var itemCreateList []safetyReq.ItemCreate
+	for _, item := range itemList {
+		var itemCreate safetyReq.ItemCreate
+		itemCreate.Item = item
+		inspectorUsernameList := strings.Split(item.InspectorUsername, ",")
+		inspectorNameList := strings.Split(item.InspectorName, ",")
+		var inspectorList []safetyReq.ItemInspector
+		for i := 0 ; i< len(inspectorUsernameList); i++ {
+			var itemInspector safetyReq.ItemInspector
+			itemInspector.InspectorUsername = inspectorUsernameList[i]
+			itemInspector.InspectorName = inspectorNameList[i]
+			inspectorList = append(inspectorList, itemInspector)
+		}
+		itemCreate.InspectorList = inspectorList
+		itemCreateList = append(itemCreateList, itemCreate)
+	}
+	return itemCreateList
 }
 
 func (itemApi *ItemApi) getAreaPath(areaId uint)(error, string) {
@@ -232,6 +273,7 @@ func (itemApi *ItemApi) UpdateItem(c *gin.Context) {
 	var itemUpdate safetyReq.ItemUpdateAndDelete
 	_ = c.ShouldBindJSON(&itemUpdate)
 	itemUpdate.FactoryName = curUser.FactoryName
+	itemUpdate.Item = itemCreate2Item(itemUpdate.ItemCreate)
 
 	if itemUpdate.Force == 1 {
 		err := itemApi.updateItem(itemUpdate.Item)
@@ -328,7 +370,7 @@ func (itemApi *ItemApi) GetItemList(c *gin.Context) {
         response.FailWithMessage("获取巡检事项列表失败", c)
     } else {
         response.OkWithDetailed(response.PageResult{
-            List:     list,
+            List:     itemList2ItemCreateList(list.([]safety.Item)),
             Total:    total,
             Page:     pageInfo.Page,
             PageSize: pageInfo.PageSize,
@@ -371,7 +413,7 @@ func (itemApi *ItemApi) GetItemListByAreaId(c *gin.Context) {
 		return
 	} else {
 		response.OkWithDetailed(response.PageResult{
-			List:     list,
+			List:     itemList2ItemCreateList(list.([]safety.Item)),
 			Total:    total,
 			Page:     pageInfo.Page,
 			PageSize: pageInfo.PageSize,

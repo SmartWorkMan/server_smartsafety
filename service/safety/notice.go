@@ -48,6 +48,11 @@ func (noticeService *NoticeService)DeleteNoticeByIds(ids request.IdsReq) (err er
 	return err
 }
 
+func (noticeService *NoticeService)DeleteNoticeByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Notice{},"org_name = ?", factoryName).Error
+	return err
+}
+
 // UpdateNotice 更新Notice记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (noticeService *NoticeService)UpdateNotice(notice safety.Notice) (err error) {
@@ -57,6 +62,7 @@ func (noticeService *NoticeService)UpdateNotice(notice safety.Notice) (err error
 		Topic: notice.Topic,
 		Content: notice.Content,
 		NoticeTime: notice.NoticeTime,
+		Attachment: notice.Attachment,
 	}
 	err = global.GVA_DB.Model(&safety.Notice{}).Where("id = ?", notice.ID).Updates(update).Error
 	return err
@@ -95,4 +101,22 @@ func (noticeService *NoticeService)GetNoticeReadList(info safetyReq.NoticeSearch
 
 	err = db.Find(&reads, "username = ?", info.Username).Error
 	return err, reads
+}
+
+func (noticeService *NoticeService)GetNoticeListForSuperUser(info safetyReq.NoticeSearch) (err error, notices []safety.Notice, total int64) {
+	limit := info.PageSize
+	offset := info.PageSize * (info.Page - 1)
+	// 创建db
+	db := global.GVA_DB.Model(&safety.Notice{})
+
+	// 如果有条件搜索 下方会自动创建搜索语句
+	err = db.Where("type = 1").Count(&total).Error
+	if err!=nil {
+		return
+	}
+	err = db.Limit(limit).Order(clause.OrderByColumn{
+		Column: clause.Column{Table: clause.CurrentTable, Name: "notice_time"},
+		Desc:   true,
+	}).Offset(offset).Find(&notices, "type = 1").Error
+	return err, notices, total
 }

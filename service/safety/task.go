@@ -79,12 +79,18 @@ func (taskService *TaskService)DeleteTaskByFactoryName(factoryName string) (err 
 	return err
 }
 
+func (taskService *TaskService)DeleteTaskHistoryByFactoryName(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.TaskHistory{},"factory_name = ?", factoryName).Error
+	return err
+}
+
+
 // UpdateTask 更新Task记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (taskService *TaskService)ReportTaskResult(task safety.Task) (err error) {
 	db := global.GVA_DB.Model(&safety.Task{})
 	curTime := time.Now().Format("2006-01-02 15:04:05")
-	updateTask := safety.Task{TaskStatus: task.TaskStatus, TaskStatusStr: task.TaskStatusStr, ItemPic: task.ItemPic, ItemDesc: task.ItemDesc, ItemValue: task.ItemValue, FixPic: task.FixPic, FixDesc: task.FixDesc, ActualInspectionTime: curTime}
+	updateTask := safety.Task{InspectorUsername:task.InspectorUsername, InspectorName: task.InspectorName, TaskStatus: task.TaskStatus, TaskStatusStr: task.TaskStatusStr, ItemPic: task.ItemPic, ItemDesc: task.ItemDesc, ItemValue: task.ItemValue, FixPic: task.FixPic, FixDesc: task.FixDesc, ActualInspectionTime: curTime}
 	err = db.Where("id = ?", task.ID).Updates(updateTask).Error
 	if err != nil {
 		return err
@@ -108,9 +114,23 @@ func (taskService *TaskService)AssignTask(task safety.Task) (err error) {
 }
 
 func (taskService *TaskService)ApproveTask(task safety.Task) (err error) {
+	var curTask safety.Task
+	err = global.GVA_DB.Where("id = ?", task.ID).First(&curTask).Error
+	if err != nil {
+		return err
+	}
+	var taskStatusStr string
+	if curTask.TaskStatus == commval.TaskStatusFireAlarm {
+		taskStatusStr = commval.TaskStatus[curTask.TaskStatus] + "确认"
+	} else if curTask.TaskStatus == commval.TaskStatusApproval{
+		taskStatusStr = "审批完成"
+	} else {
+		return errors.New("只能审批当前是待审批状态或者火警处置的任务!")
+	}
+
 	db := global.GVA_DB.Model(&safety.Task{})
 	curTime := time.Now().Format("2006-01-02 15:04:05")
-	updateTask := safety.Task{ TaskStatus: commval.TaskStatusEnd, TaskStatusStr: "审批完成", ActualInspectionTime: curTime}
+	updateTask := safety.Task{ TaskStatus: commval.TaskStatusEnd, TaskStatusStr: taskStatusStr, ActualInspectionTime: curTime}
 	err = db.Where("id = ?", task.ID).Updates(updateTask).Error
 	if err != nil {
 		return err
@@ -126,17 +146,28 @@ func (taskService *TaskService)RejectTask(task safety.Task) (err error) {
 	if err != nil {
 		return err
 	}
-	if curTask.TaskStatus != commval.TaskStatusReportIssue && curTask.TaskStatus != commval.TaskStatusApproval {
-		return errors.New("只能驳回上报整改或者审批状态的任务!")
+	if curTask.TaskStatus != commval.TaskStatusReportIssue &&
+		curTask.TaskStatus != commval.TaskStatusApproval &&
+		curTask.TaskStatus != commval.TaskStatusFireAlarm {
+		return errors.New("只能驳回上报整改,待审批状态或者火警处置的任务!")
 	}
 
-	curTask.TaskStatus -= 1
+	var taskStatusStr string
+	historyStatusStr := ""
+	if curTask.TaskStatus == commval.TaskStatusFireAlarm {
+		curTask.TaskStatus = commval.TaskStatusNotStart
+		taskStatusStr = commval.TaskStatus[curTask.TaskStatus]
+		historyStatusStr = commval.TaskStatus[commval.TaskStatusFireAlarm] + "驳回"
+	} else {
+		curTask.TaskStatus -= 1
+		taskStatusStr = commval.TaskStatus[curTask.TaskStatus]
+	}
 
 	db := global.GVA_DB.Model(&safety.Task{})
 	curTime := time.Now().Format("2006-01-02 15:04:05")
 	updateMap := make(map[string]interface{})
 	updateMap["task_status"] = curTask.TaskStatus
-	updateMap["task_status_str"] = commval.TaskStatus[curTask.TaskStatus]
+	updateMap["task_status_str"] = taskStatusStr
 	updateMap["actual_inspection_time"] = curTime
 	updateMap["admin_comment"] = task.AdminComment
 
@@ -145,6 +176,9 @@ func (taskService *TaskService)RejectTask(task safety.Task) (err error) {
 		return err
 	}
 	_, outTask := taskService.GetTask(task.ID)
+	if historyStatusStr != "" {
+		outTask.TaskStatusStr = historyStatusStr
+	}
 	err = taskService.CreateTaskHistory(outTask)
 	return err
 }
@@ -164,10 +198,11 @@ func (taskService *TaskService)GetTaskInfoList(info safetyReq.TaskSearch) (err e
     // 创建db
 	db := global.GVA_DB.Model(&safety.Task{})
     var tasks []safety.Task
-    // 如果有条件搜索 下方会自动创建搜索语句
+
     if info.TaskStatus == commval.TaskStatusReportIssue ||
 		info.TaskStatus == commval.TaskStatusAssignTask ||
-		info.TaskStatus == commval.TaskStatusApproval {
+		info.TaskStatus == commval.TaskStatusApproval ||
+		info.TaskStatus == commval.TaskStatusFireAlarm {
 		err = db.Where("factory_name = ? AND task_status = ?", info.FactoryName, info.TaskStatus).Count(&total).Error
 		if err!=nil {
 			return
@@ -200,42 +235,42 @@ func (taskService *TaskService)GetTaskHistory(info safetyReq.ReqTaskHistory) (er
 
 	if info.ItemName != "" && info.TimeRange != "" {
 		timeRange := strings.Split(info.TimeRange, "~")
-		err = db.Where("factory_name = ? AND item_name like ? AND task_status_str = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr, timeRange[0], timeRange[1]).Count(&total).Error
+		err = db.Where("factory_name = ? AND item_name like ? AND task_status_str like ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr+"%", timeRange[0], timeRange[1]).Count(&total).Error
 		if err!=nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status_str = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr, timeRange[0], timeRange[1]).Error
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status_str like ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr+"%", timeRange[0], timeRange[1]).Error
 	} else if info.ItemName != "" && info.TimeRange == "" {
-		err = db.Where("factory_name = ? AND item_name like ? AND task_status_str = ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr).Count(&total).Error
+		err = db.Where("factory_name = ? AND item_name like ? AND task_status_str like ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr+"%").Count(&total).Error
 		if err!=nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status_str = ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr).Error
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status_str like ?", info.FactoryName, "%"+info.ItemName+"%", info.TaskStatusStr+"%").Error
 	} else if info.ItemName == "" && info.TimeRange != "" {
 		timeRange := strings.Split(info.TimeRange, "~")
-		err = db.Where("factory_name = ? AND task_status_str = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, info.TaskStatusStr, timeRange[0], timeRange[1]).Count(&total).Error
+		err = db.Where("factory_name = ? AND task_status_str like ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, info.TaskStatusStr+"%", timeRange[0], timeRange[1]).Count(&total).Error
 		if err!=nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, info.TaskStatusStr, timeRange[0], timeRange[1]).Error
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str like ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, info.TaskStatusStr+"%", timeRange[0], timeRange[1]).Error
 	} else if info.ItemName == "" && info.TimeRange == "" {
-		err = db.Where("factory_name = ? AND task_status_str = ?", info.FactoryName, info.TaskStatusStr).Count(&total).Error
+		err = db.Where("factory_name = ? AND task_status_str like ?", info.FactoryName, info.TaskStatusStr+"%").Count(&total).Error
 		if err!=nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str = ?", info.FactoryName, info.TaskStatusStr).Error
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str like ?", info.FactoryName, info.TaskStatusStr+"%").Error
 	}
 	return err, tasks, total
 }
@@ -248,14 +283,45 @@ func (taskService *TaskService)GetTimeOutTaskHistory(info safetyReq.ReqTaskHisto
 	db := global.GVA_DB.Model(&safety.TaskHistory{})
 	var tasks []safety.TaskHistory
 
-	err = db.Where("factory_name = ? AND task_status = ? ", info.FactoryName, commval.TaskStatusTimeOut).Count(&total).Error
-	if err!=nil {
-		return
+	if info.ItemName != "" && info.TimeRange != "" {
+		timeRange := strings.Split(info.TimeRange, "~")
+		err = db.Where("factory_name = ? AND item_name like ? AND task_status = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", commval.TaskStatusTimeOut, timeRange[0], timeRange[1]).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Order(clause.OrderByColumn{
+			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
+			Desc:   true,
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, "%"+info.ItemName+"%", commval.TaskStatusTimeOut, timeRange[0], timeRange[1]).Error
+	} else if info.ItemName != "" && info.TimeRange == "" {
+		err = db.Where("factory_name = ? AND item_name like ? AND task_status = ?", info.FactoryName, "%"+info.ItemName+"%", commval.TaskStatusTimeOut).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Order(clause.OrderByColumn{
+			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
+			Desc:   true,
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND item_name like ? AND task_status = ?", info.FactoryName, "%"+info.ItemName+"%", commval.TaskStatusTimeOut).Error
+	} else if info.ItemName == "" && info.TimeRange != "" {
+		timeRange := strings.Split(info.TimeRange, "~")
+		err = db.Where("factory_name = ? AND task_status = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, commval.TaskStatusTimeOut, timeRange[0], timeRange[1]).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Order(clause.OrderByColumn{
+			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
+			Desc:   true,
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status = ? And actual_inspection_time >= ? And actual_inspection_time <= ?", info.FactoryName, commval.TaskStatusTimeOut, timeRange[0], timeRange[1]).Error
+	} else if info.ItemName == "" && info.TimeRange == "" {
+		err = db.Where("factory_name = ? AND task_status = ?", info.FactoryName, commval.TaskStatusTimeOut).Count(&total).Error
+		if err!=nil {
+			return
+		}
+		err = db.Limit(limit).Order(clause.OrderByColumn{
+			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
+			Desc:   true,
+		}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status = ?", info.FactoryName, commval.TaskStatusTimeOut).Error
 	}
-	err = db.Limit(limit).Order(clause.OrderByColumn{
-		Column: clause.Column{Table: clause.CurrentTable, Name: "plan_inspection_date"},
-		Desc:   true,
-	}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status = ? ", info.FactoryName, commval.TaskStatusTimeOut).Error
 
 	return err, tasks, total
 }
@@ -371,14 +437,14 @@ func (taskService *TaskService)GetTaskHistoryByStatusStrForAppAdmin(info safetyR
 	db := global.GVA_DB.Model(&safety.TaskHistory{})
 	var tasks []safety.TaskHistory
 
-	err = db.Where("factory_name = ? AND task_status_str = ?", info.FactoryName, info.TaskStatusStr).Count(&total).Error
+	err = db.Where("factory_name = ? AND task_status_str like ?", info.FactoryName, info.TaskStatusStr+"%").Count(&total).Error
 	if err!=nil {
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 		Desc:   true,
-	}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str = ?", info.FactoryName, info.TaskStatusStr).Error
+	}).Offset(offset).Find(&tasks, "factory_name = ? AND task_status_str like ?", info.FactoryName, info.TaskStatusStr+"%").Error
 
 	return err, tasks, total
 }
@@ -391,14 +457,14 @@ func (taskService *TaskService)GetTaskHistoryByStatusStrForInspector(info safety
 	db := global.GVA_DB.Model(&safety.TaskHistory{})
 	var tasks []safety.TaskHistory
 
-	err = db.Where("factory_name = ? AND inspector_username = ? AND task_status_str = ?", info.FactoryName, info.InspectorUsername, info.TaskStatusStr).Count(&total).Error
+	err = db.Where("factory_name = ? AND inspector_username = ? AND task_status_str like ?", info.FactoryName, info.InspectorUsername, info.TaskStatusStr+"%").Count(&total).Error
 	if err!=nil {
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 		Desc:   true,
-	}).Offset(offset).Find(&tasks, "factory_name = ? AND inspector_username = ?  AND task_status_str = ?", info.FactoryName, info.InspectorUsername, info.TaskStatusStr).Error
+	}).Offset(offset).Find(&tasks, "factory_name = ? AND inspector_username = ?  AND task_status_str like ?", info.FactoryName, info.InspectorUsername, info.TaskStatusStr+"%").Error
 
 	return err, tasks, total
 }
@@ -410,14 +476,14 @@ func (taskService *TaskService)GetTaskListByAreaForInspector(info safetyReq.Task
 	db := global.GVA_DB.Model(&safety.Task{})
 	var tasks []safety.Task
 
-	err = db.Where("inspector_username = ? AND area_id = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.InspectorUsername, info.AreaId, info.PlanInspectionDate).Count(&total).Error
+	err = db.Where("inspector_username like ? AND area_id = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", "%"+info.InspectorUsername+"%", info.AreaId, info.PlanInspectionDate).Count(&total).Error
 	if err != nil {
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 		Desc:   true,
-	}).Offset(offset).Find(&tasks, "inspector_username = ? AND area_id = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.InspectorUsername, info.AreaId, info.PlanInspectionDate).Error
+	}).Offset(offset).Find(&tasks, "inspector_username like ? AND area_id = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", "%"+info.InspectorUsername+"%", info.AreaId, info.PlanInspectionDate).Error
 
 
 	return err, tasks, total
@@ -431,23 +497,23 @@ func (taskService *TaskService)GetTaskListByStatusForInspector(info safetyReq.Ta
 	var tasks []safety.Task
 
 	if info.TaskStatus == commval.TaskStatusNotStart {
-		err = db.Where("inspector_username = ? AND task_status = 0 AND plan_inspection_date = ?", info.InspectorUsername, info.PlanInspectionDate).Count(&total).Error
+		err = db.Where("inspector_username like ? AND task_status = 0 AND plan_inspection_date = ?", "%"+info.InspectorUsername+"%", info.PlanInspectionDate).Count(&total).Error
 		if err != nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "inspector_username = ? AND task_status = 0 AND plan_inspection_date = ?", info.InspectorUsername, info.PlanInspectionDate).Error
+		}).Offset(offset).Find(&tasks, "inspector_username like ? AND task_status = 0 AND plan_inspection_date = ?", "%"+info.InspectorUsername+"%", info.PlanInspectionDate).Error
 	} else {
-		err = db.Where("inspector_username = ? AND task_status = ?", info.InspectorUsername, info.TaskStatus).Count(&total).Error
+		err = db.Where("inspector_username like ? AND task_status = ?", "%"+info.InspectorUsername+"%", info.TaskStatus).Count(&total).Error
 		if err != nil {
 			return
 		}
 		err = db.Limit(limit).Order(clause.OrderByColumn{
 			Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 			Desc:   true,
-		}).Offset(offset).Find(&tasks, "inspector_username = ? AND task_status = ?", info.InspectorUsername, info.TaskStatus).Error
+		}).Offset(offset).Find(&tasks, "inspector_username like ? AND task_status = ?", "%"+info.InspectorUsername+"%", info.TaskStatus).Error
 	}
 
 	return err, tasks, total
@@ -460,14 +526,14 @@ func (taskService *TaskService)GetTaskListByInspectorForAreaTree(info safetyReq.
 	db := global.GVA_DB.Model(&safety.Task{})
 	var tasks []safety.Task
 	// 如果有条件搜索 下方会自动创建搜索语句
-	err = db.Where("factory_name = ? AND inspector_username = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.FactoryName, info.InspectorUsername, info.PlanInspectionDate).Count(&total).Error
+	err = db.Where("factory_name = ? AND inspector_username like ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.FactoryName, "%"+info.InspectorUsername+"%", info.PlanInspectionDate).Count(&total).Error
 	if err!=nil {
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 		Desc:   true,
-	}).Offset(offset).Find(&tasks, "factory_name = ? AND inspector_username = ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.FactoryName, info.InspectorUsername, info.PlanInspectionDate).Error
+	}).Offset(offset).Find(&tasks, "factory_name = ? AND inspector_username like ? AND (((task_status = 0 OR task_status = 4) AND plan_inspection_date = ?) OR (task_status != 0 AND task_status != 4))", info.FactoryName, "%"+info.InspectorUsername+"%", info.PlanInspectionDate).Error
 	return err, tasks, total
 }
 
@@ -507,7 +573,7 @@ func (taskService *TaskService)GetTaskByItem(itemId uint) (err error, list []saf
 
 func (taskService *TaskService) IsExistActiveTask(inputTask safety.Task) bool {
 	var task safety.Task
-	if errors.Is(global.GVA_DB.Where("factory_name = ? AND item_id = ? AND (task_status = ? OR task_status = ? OR task_status = ?)", inputTask.FactoryName, inputTask.ItemId, commval.TaskStatusReportIssue, commval.TaskStatusAssignTask, commval.TaskStatusApproval).First(&task).Error, gorm.ErrRecordNotFound) {
+	if errors.Is(global.GVA_DB.Where("factory_name = ? AND item_id = ? AND (task_status = ? OR task_status = ? OR task_status = ? OR task_status = ?)", inputTask.FactoryName, inputTask.ItemId, commval.TaskStatusReportIssue, commval.TaskStatusAssignTask, commval.TaskStatusApproval, commval.TaskStatusFireAlarm).First(&task).Error, gorm.ErrRecordNotFound) {
 		return false
 	}
 
@@ -639,14 +705,14 @@ func (taskService *TaskService)GetStartInspectInfo(info safetyReq.TaskSearch) (e
 	db := global.GVA_DB.Model(&safety.TaskHistory{})
 	var tasks []safety.TaskHistory
 
-	err = db.Where("factory_name = ? AND left(actual_inspection_time, 10) = ? AND task_status_str in ('正常','上报整改','存在隐患','现场整改')", info.FactoryName, curDate).Count(&total).Error
+	err = db.Where("factory_name = ? AND left(actual_inspection_time, 10) = ? AND task_status_str in ('正常','上报整改','存在隐患','现场整改','火警处置')", info.FactoryName, curDate).Count(&total).Error
 	if err!=nil {
 		return
 	}
 	err = db.Limit(limit).Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "actual_inspection_time"},
 		Desc:   false,
-	}).Offset(offset).Find(&tasks, "factory_name = ? AND left(actual_inspection_time, 10) = ? AND task_status_str in ('正常','上报整改','存在隐患','现场整改')", info.FactoryName, curDate).Error
+	}).Offset(offset).Find(&tasks, "factory_name = ? AND left(actual_inspection_time, 10) = ? AND task_status_str in ('正常','上报整改','存在隐患','现场整改','火警处置')", info.FactoryName, curDate).Error
 
 	return err, tasks, total
 }
@@ -661,14 +727,14 @@ func (taskService *TaskService)GetTimeOutTaskList() (err error, list []safety.Ta
 
 func (taskService *TaskService)GetInspectorTimeOutTaskCount(task safety.Task) (err error, total int64) {
 	db := global.GVA_DB.Model(&safety.TaskHistory{})
-	err = db.Where("factory_name = ? AND inspector_username = ? AND task_status = ?", task.FactoryName, task.InspectorUsername, commval.TaskStatusTimeOut).Count(&total).Error
+	err = db.Where("factory_name = ? AND inspector_username like ? AND task_status = ?", task.FactoryName, "%"+task.InspectorUsername+"%", commval.TaskStatusTimeOut).Count(&total).Error
 	return err, total
 }
 
 func (taskService *TaskService)GetInspectorTodayInspectTaskCount(task safety.Task) (err error, total int64) {
 	db := global.GVA_DB.Model(&safety.Task{})
 	curDate := time.Now().Format("2006-01-02")
-	err = db.Where("factory_name = ? AND inspector_username = ? AND left(actual_inspection_time, 10) = ? AND task_status != ?", task.FactoryName, task.InspectorUsername, curDate, commval.TaskStatusNotStart).Count(&total).Error
+	err = db.Where("factory_name = ? AND inspector_username = ? AND left(actual_inspection_time, 10) = ? AND (task_status = 1 OR task_status = 4 OR task_status = 6)", task.FactoryName, task.InspectorUsername, curDate).Count(&total).Error
 	return err, total
 }
 
@@ -681,6 +747,6 @@ func (taskService *TaskService)GetInspectorNotFixedTaskCount(task safety.Task) (
 func (taskService *TaskService)GetInspectorTodayNotInspectTaskCount(task safety.Task) (err error, total int64) {
 	db := global.GVA_DB.Model(&safety.Task{})
 	curDate := time.Now().Format("2006-01-02")
-	err = db.Where("factory_name = ? AND inspector_username = ? AND plan_inspection_date = ? AND task_status = ?", task.FactoryName, task.InspectorUsername, curDate, commval.TaskStatusNotStart).Count(&total).Error
+	err = db.Where("factory_name = ? AND inspector_username like ? AND plan_inspection_date = ? AND task_status = ?", task.FactoryName, "%"+task.InspectorUsername+"%", curDate, commval.TaskStatusNotStart).Count(&total).Error
 	return err, total
 }

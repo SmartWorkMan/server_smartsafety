@@ -54,6 +54,11 @@ func (reportService *ReportService)DeleteReportByIds(ids request.IdsReq) (err er
 	return err
 }
 
+func (reportService *ReportService)DeleteReportByFactory(factoryName string) (err error) {
+	err = global.GVA_DB.Delete(&[]safety.Report{},"factory_name = ?", factoryName).Error
+	return err
+}
+
 // UpdateReport 更新Report记录
 // Author [piexlmax](https://github.com/piexlmax)
 func (reportService *ReportService)UpdateReport(report safety.Report) (err error) {

@@ -24,5 +24,6 @@ func (s *NoticeRouter) InitNoticeRouter(Router *gin.RouterGroup) {
 	{
 		//noticeRouterWithoutRecord.GET("findNotice", noticeApi.FindNotice)        // 根据ID获取Notice
 		noticeRouterWithoutRecord.POST("getNoticeList", noticeApi.GetNoticeList)  // 获取Notice列表
+		noticeRouterWithoutRecord.POST("getNoticeListForSuperUser", noticeApi.GetNoticeListForSuperUser)  // 获取Notice列表
 	}
 }

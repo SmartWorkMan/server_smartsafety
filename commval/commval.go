@@ -77,6 +77,7 @@ const (
 	TaskStatusApproval
 	TaskStatusEnd
 	TaskStatusTimeOut
+	TaskStatusFireAlarm
 )
 
 const (
@@ -93,5 +94,6 @@ func InitCommVal() {
 	TaskStatus[TaskStatusAssignTask] = "管理员下派任务"
 	TaskStatus[TaskStatusApproval] = "巡检员上报审批"
 	TaskStatus[TaskStatusEnd] = "正常"
+	TaskStatus[TaskStatusFireAlarm] = "火警处置"
 }
 

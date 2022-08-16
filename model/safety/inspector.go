@@ -16,6 +16,7 @@ type Inspector struct {
       Depart  string `json:"depart" form:"depart" gorm:"column:depart;comment:部门;size:191;"`
       Job  string `json:"job" form:"job" gorm:"column:job;comment:岗位;size:191;"`
       FactoryName  string `json:"factoryName" form:"factoryName" gorm:"column:factory_name;comment:工厂名称;size:191;"`
+      Certification  string `json:"certification" form:"certification" gorm:"column:certification;comment:资格证;size:1000;"`
 }
 
 

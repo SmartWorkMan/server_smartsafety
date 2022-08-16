@@ -122,6 +122,13 @@ func (safetyFactoryApi *SafetyFactoryApi) DeleteSafetyFactory(c *gin.Context) {
 			response.FailWithMessage("删除工厂失败!删除工厂管理员和维保管理员失败!", c)
 		}
 
+		//删除巡检员
+		err = inspectorService.DeleteInspectorByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除巡检员失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除巡检员失败!", c)
+		}
+
 		//删除巡检区域
 		var area safety.Area
 		area.FactoryName = queryFac.FactoryName
@@ -138,6 +145,76 @@ func (safetyFactoryApi *SafetyFactoryApi) DeleteSafetyFactory(c *gin.Context) {
 		if err != nil {
 			global.GVA_LOG.Error( "删除工厂失败!删除工厂巡检事项失败!", zap.Error(err))
 			response.FailWithMessage("删除工厂失败!删除工厂巡检事项失败!", c)
+		}
+
+		//删除打卡记录
+		err = clockService.DeleteClockByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除打卡记录失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除打卡记录失败!", c)
+		}
+
+		//删除通知
+		err = noticeService.DeleteNoticeByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除通知失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除通知失败!", c)
+		}
+
+		//删除报告
+		err = reportService.DeleteReportByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除报告失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除报告失败!", c)
+		}
+
+		//删除培训
+		err = trainingService.DeleteTrainingByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除培训失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除培训失败!", c)
+		}
+
+		//删除应急预案
+		err = planService.DeletePlanByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除应急预案失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除应急预案失败!", c)
+		}
+
+		//删除基础信息
+		err = basicInfoService.DeleteBasicInfoByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除基础信息失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除基础信息失败!", c)
+		}
+
+		//删除建筑信息
+		err = buildingInfoService.DeleteBuildingInfoByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除建筑信息失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除建筑信息失败!", c)
+		}
+
+		//删除重点部位
+		err = keyLocationService.DeleteKeyLocationByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除重点部位失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除重点部位失败!", c)
+		}
+
+		//删除重点部位库
+		err = locationLibraryService.DeleteLocationLibraryByFactory(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除重点部位库失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除重点部位库失败!", c)
+		}
+
+		//删除巡检任务记录
+		err = taskService.DeleteTaskHistoryByFactoryName(queryFac.FactoryName)
+		if err != nil {
+			global.GVA_LOG.Error( "删除工厂失败!删除工厂巡检任务记录失败!", zap.Error(err))
+			response.FailWithMessage("删除工厂失败!删除工厂巡检任务记录失败!", c)
 		}
 
 		//删除巡检任务

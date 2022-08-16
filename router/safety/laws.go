@@ -23,6 +23,6 @@ func (s *LawsRouter) InitLawsRouter(Router *gin.RouterGroup) {
 	{
 		lawsRouterWithoutRecord.GET("findLaws", lawsApi.FindLaws)        // 根据ID获取Laws
 		lawsRouterWithoutRecord.POST("getLawsList", lawsApi.GetLawsList)  // 获取Laws列表
-		lawsRouterWithoutRecord.POST("getLawsListForAdmin", lawsApi.GetLawsListForAdmin)  // 获取Laws列表
+		lawsRouterWithoutRecord.POST("app/getLawsListForApp", lawsApi.GetLawsListForApp)  // 获取Laws列表
 	}
 }
